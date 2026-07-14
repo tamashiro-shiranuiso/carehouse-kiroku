@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ケアハウス総合管理システム</title>
-  <!-- Bootstrap（デザイン用）の読み込み -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
     body { background-color: #f8f9fa; padding: 20px 10px; }
@@ -13,93 +12,76 @@
     .btn-voice { background-color: #ffc107; color: #000; font-weight: bold; }
     #loading { display: none; color: #0d6efd; font-weight: bold; text-align: center; margin-top: 10px; }
     
-    /* ナビゲーションタブの大型化 */
-    .nav-pills .nav-link {
-      font-size: 1.1rem;
-      font-weight: bold;
-      padding: 15px;
-      border-radius: 10px;
-      color: #6c757d;
-      background-color: #fff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
-    .nav-pills .nav-link.active {
-      background-color: #0d6efd;
-      color: #fff;
-    }
+    .nav-pills .nav-link { font-size: 1.1rem; font-weight: bold; padding: 15px; border-radius: 10px; color: #6c757d; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .nav-pills .nav-link.active { background-color: #0d6efd; color: #fff; }
 
-    /* 折りたたみカテゴリヘッダー */
     .category-header { transition: all 0.2s ease; font-size: 1.1rem; user-select: none; }
     .category-header:active { opacity: 0.8; }
     .type-btn { font-size: 1.05rem; padding: 12px 10px; font-weight: bold; }
     #note { font-size: 1.1rem; }
 
-    /* ダッシュボード・マスタ用スタイル */
     .record-card { border-left: 5px solid #0d6efd; background-color: #fff; border-radius: 10px; }
     .master-list-item { background-color: #fff; border-radius: 8px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* 検索用ボタン型チェックボックスの調整 */
-    .search-checkbox-label {
-      padding: 10px 15px;
-      font-weight: bold;
-      font-size: 1rem;
-    }
+    .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
   </style>
 </head>
 <body>
 
 <div class="container-xl">
   
-  <!-- 画面上部：メインメニュー -->
   <ul class="nav nav-pills nav-fill gap-2 mb-4 d-none" id="mainTab" role="tablist">
-    <li class="nav-item">
-      <button class="nav-link active" id="input-tab" onclick="switchView('input')">📝 記録を入力する</button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">📊 記録を探す (検索)</button>
-    </li>
-    <li class="nav-item">
-      <button class="nav-link" id="master-tab" onclick="switchView('master')">⚙️ 設定 (マスタ管理)</button>
-    </li>
+    <li class="nav-item"><button class="nav-link active" id="input-tab" onclick="switchView('input')">📝 記録を入力する</button></li>
+    <li class="nav-item"><button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">📊 記録を探す (検索)</button></li>
+    <li class="nav-item"><button class="nav-link" id="master-tab" onclick="switchView('master')">⚙️ 設定 (マスタ管理)</button></li>
   </ul>
 
-  <!-- ===================================================
-       0. 初期設定（システム連携）画面
-       =================================================== -->
   <div id="view-setup" class="view-section d-none">
     <div class="card p-5 shadow mx-auto" style="max-width: 650px; margin-top: 10vh; border-top: 8px solid #0d6efd;">
       <h2 class="text-center mb-3 fw-bold text-dark">🔗 システム初期設定</h2>
       <p class="text-muted text-center mb-4 fs-5">この端末からデータベースに接続するための<br>「連携用URL」を入力してください。</p>
-      
       <div class="mb-4">
         <label class="form-label fw-bold text-secondary">WebアプリURL (GAS)</label>
         <input type="text" id="setupGasUrl" class="form-control form-control-lg bg-light" placeholder="https://script.google.com/macros/s/...">
       </div>
-      
       <button class="btn btn-primary btn-lg w-100 fw-bold p-3 shadow-sm" onclick="saveGasUrl()">システムに連携して開始する</button>
       <div class="text-center mt-3 small text-muted">※一度設定すれば、次回からはこの画面は表示されません。</div>
     </div>
   </div>
 
-  <!-- ===================================================
-       1. 支援記録 入力画面
-       =================================================== -->
   <div id="view-input" class="view-section d-none">
     <div class="card p-4">
       <h3 class="text-center mb-4 fw-bold text-secondary">支援記録 入力</h3>
       <form id="recordForm">
+        <input type="hidden" id="editRecordId" value="">
+        
         <div class="row g-4">
           <div class="col-lg-6">
             <div class="mb-3">
               <label class="form-label">📅 発生日時</label>
               <input type="datetime-local" id="date" class="form-control form-control-lg" required>
             </div>
+            
             <div class="mb-3">
-              <label class="form-label">👤 利用者名</label>
+              <div class="d-flex justify-content-between align-items-end mb-1">
+                <label class="form-label mb-0">👤 利用者名</label>
+                <div class="form-check form-switch" id="multiSwitchContainer">
+                  <input class="form-check-input" type="checkbox" id="multiUserSwitch" onchange="toggleMultiUser()">
+                  <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人に入力する</label>
+                </div>
+              </div>
               <select id="user" class="form-select form-select-lg" required>
                 <option value="">読み込み中...</option>
               </select>
+              <div id="multiUserContainer" class="d-none border rounded p-3 bg-light shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                <div class="mb-3 pb-2 border-bottom d-flex gap-2">
+                  <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="selectAllUsers(true)">☑ すべて選択</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary fw-bold" onclick="selectAllUsers(false)">☐ 解除</button>
+                </div>
+                <div id="multiUserCheckboxes" class="row g-2"></div>
+              </div>
             </div>
+
             <div class="mb-3">
               <label class="form-label">📛 記録者名</label>
               <select id="staff" class="form-select form-select-lg" required>
@@ -108,89 +90,63 @@
             </div>
             <div class="mb-3">
               <label class="form-label">🏷️ 種別選択（タップして展開）</label>
-              <div id="typeAccordionContainer">
-                <div class="text-muted">読み込み中...</div>
-              </div>
+              <div id="typeAccordionContainer"><div class="text-muted">読み込み中...</div></div>
               <input type="hidden" id="selectedType" value="">
             </div>
           </div>
+          
           <div class="col-lg-6 d-flex flex-column justify-content-between">
             <div class="mb-4 flex-grow-1">
               <label class="form-label">📝 特記事項</label>
-              <button type="button" id="voiceBtn" class="btn btn-voice w-100 mb-2 p-3 rounded-3 shadow-sm">
-                🎤 音声入力スタート（ここを押して話す）
-              </button>
+              <button type="button" id="voiceBtn" class="btn btn-voice w-100 mb-2 p-3 rounded-3 shadow-sm">🎤 音声入力スタート（ここを押して話す）</button>
               <textarea id="note" class="form-control" rows="8" placeholder="ここに記録が入ります..." required></textarea>
             </div>
-            <div>
+            <div class="d-flex gap-2">
+              <button type="button" id="cancelEditBtn" class="btn btn-secondary btn-lg fw-bold p-3 shadow d-none" onclick="cancelEdit()">やめる</button>
               <button type="button" id="submitBtn" class="btn btn-primary btn-lg w-100 p-3 rounded-3 fw-bold shadow">登録する</button>
-              <div id="loading" class="fs-5">処理中...しばらくお待ちください。</div>
             </div>
+            <div id="loading" class="fs-5">処理中...しばらくお待ちください。</div>
           </div>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- ===================================================
-       2. 記録を探す（ダッシュボード画面）
-       =================================================== -->
   <div id="view-dashboard" class="view-section d-none">
     <div class="card p-4">
       <h3 class="text-center mb-4 fw-bold text-secondary">支援記録 検索・ダッシュボード</h3>
-      
       <div class="row g-4">
         <div class="col-lg-5">
           <div class="p-3 bg-light rounded-3 mb-4 border h-100 d-flex flex-column justify-content-between">
             <div>
               <h5 class="fw-bold text-muted mb-3">🔍 検索条件</h5>
-              
               <div class="row g-2 mb-3">
-                <div class="col-6">
-                  <label class="form-label text-secondary small mb-1">📅 開始日</label>
-                  <input type="date" id="searchStartDate" class="form-control form-control-lg">
-                </div>
-                <div class="col-6">
-                  <label class="form-label text-secondary small mb-1">📅 終了日</label>
-                  <input type="date" id="searchEndDate" class="form-control form-control-lg">
-                </div>
+                <div class="col-6"><label class="form-label text-secondary small mb-1">📅 開始日</label><input type="date" id="searchStartDate" class="form-control form-control-lg"></div>
+                <div class="col-6"><label class="form-label text-secondary small mb-1">📅 終了日</label><input type="date" id="searchEndDate" class="form-control form-control-lg"></div>
               </div>
-
               <div class="mb-3">
                 <label class="form-label text-secondary small d-block mb-1">① 利用者のステータス（下の名簿が自動連動）</label>
                 <div class="d-flex flex-wrap gap-2">
                   <input type="checkbox" class="btn-check search-status-check" id="status-active" value="利用中" onchange="filterSearchUserOptions()">
                   <label class="btn btn-outline-success search-checkbox-label" for="status-active">利用中</label>
-
                   <input type="checkbox" class="btn-check search-status-check" id="status-hospital" value="入院中" onchange="filterSearchUserOptions()">
                   <label class="btn btn-outline-warning text-dark search-checkbox-label" for="status-hospital">入院中</label>
-
                   <input type="checkbox" class="btn-check search-status-check" id="status-out" value="退去" onchange="filterSearchUserOptions()">
                   <label class="btn btn-outline-danger search-checkbox-label" for="status-out">退去</label>
                 </div>
               </div>
-
               <div class="mb-3">
                 <label class="form-label text-secondary small mb-1">② 利用者（個人個人の絞り込み）</label>
-                <select id="searchUser" class="form-select form-select-lg">
-                  <option value="">全員（絞り込みなし）</option>
-                </select>
+                <select id="searchUser" class="form-select form-select-lg"><option value="">全員（絞り込みなし）</option></select>
               </div>
-
               <div class="mb-3">
                 <label class="form-label text-secondary small d-block mb-1">🏷️ 記録の種別（複数選択可）</label>
-                <div id="searchTypeCheckboxContainer" class="d-flex flex-wrap gap-2 p-2 border rounded bg-white" style="max-height: 160px; overflow-y: auto;">
-                  <!-- JSでマスタから自動生成 -->
-                </div>
+                <div id="searchTypeCheckboxContainer" class="d-flex flex-wrap gap-2 p-2 border rounded bg-white" style="max-height: 160px; overflow-y: auto;"></div>
               </div>
             </div>
-
-            <div class="mt-3">
-              <button type="button" class="btn btn-success btn-lg w-100 p-3 fw-bold shadow-sm" onclick="doSearch()">この条件で検索する</button>
-            </div>
+            <div class="mt-3"><button type="button" class="btn btn-success btn-lg w-100 p-3 fw-bold shadow-sm" onclick="doSearch()">この条件で検索する</button></div>
           </div>
         </div>
-
         <div class="col-lg-7">
           <h5 class="fw-bold text-secondary mb-3">📋 記録一覧（最新順）</h5>
           <div id="searchResultsContainer" style="max-height: 620px; overflow-y: auto; padding-right: 5px;">
@@ -201,13 +157,9 @@
     </div>
   </div>
 
-  <!-- ===================================================
-       3. 設定（マスタ管理画面）
-       =================================================== -->
   <div id="view-master" class="view-section d-none">
     <div class="card p-4">
       <h3 class="text-center mb-4 fw-bold text-secondary">マスタ管理（名簿設定）</h3>
-      
       <div class="row g-4">
         <div class="col-md-6">
           <div class="p-3 bg-light rounded-3 border h-100">
@@ -216,17 +168,14 @@
               <input type="text" id="newUserName" class="form-control form-control-lg" placeholder="新しい利用者の氏名">
               <button class="btn btn-success fw-bold text-white" type="button" onclick="addMaster('利用者マスタ')">追加</button>
             </div>
-            
             <div class="form-check form-switch mb-3">
               <input class="form-check-input" type="checkbox" id="showPastUsers" onchange="renderMasterLists()">
               <label class="form-check-label fw-bold text-muted small" for="showPastUsers">🔍 過去の退去者を表示して復元する</label>
             </div>
-
             <h6 class="text-muted fw-bold mb-2">現在登録されている利用者（タップで状態切り替え）</h6>
             <div id="masterUserList" style="max-height: 400px; overflow-y: auto;"></div>
           </div>
         </div>
-
         <div class="col-md-6">
           <div class="p-3 bg-light rounded-3 border h-100">
             <h4 class="fw-bold text-primary mb-3">📛 スタッフ名簿の管理</h4>
@@ -234,18 +183,14 @@
               <input type="text" id="newStaffName" class="form-control form-control-lg" placeholder="新しいスタッフの氏名">
               <button class="btn btn-primary fw-bold" type="button" onclick="addMaster('スタッフマスタ')">追加</button>
             </div>
-
             <div class="form-check form-switch mb-3">
               <input class="form-check-input" type="checkbox" id="showPastStaffs" onchange="renderMasterLists()">
               <label class="form-check-label fw-bold text-muted small" for="showPastStaffs">🔍 過去の退職者を表示して復元する</label>
             </div>
-
             <h6 class="text-muted fw-bold mb-2">現在登録されているスタッフ（タップで状態切り替え）</h6>
             <div id="masterStaffList" style="max-height: 400px; overflow-y: auto;"></div>
           </div>
         </div>
-
-        <!-- ★【新規】システム連携URLの管理エリアを追加しました -->
         <div class="col-12 mt-2">
           <div class="p-3 bg-white rounded-3 border shadow-sm">
             <h5 class="fw-bold text-secondary mb-3">🔗 システム連携設定 (管理者用)</h5>
@@ -256,7 +201,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
@@ -264,9 +208,7 @@
 </div>
 
 <script>
-  // ★セキュリティ向上のため、プログラム内にURLを書かず端末の記憶（localStorage）から呼び出す仕様に変更
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
-
   let globalUserData = [];
   let globalStaffData = []; 
   let globalRecords = []; 
@@ -278,26 +220,20 @@
   function switchView(viewName) {
     document.querySelectorAll('.view-section').forEach(section => section.classList.add('d-none'));
     document.querySelectorAll('#mainTab .nav-link').forEach(tab => tab.classList.remove('active'));
-    
     document.getElementById(`view-${viewName}`).classList.remove('d-none');
     
-    // セットアップ画面以外ならタブをアクティブにする
     if (viewName !== 'setup') {
       document.getElementById(`${viewName}-tab`).classList.add('active');
     }
-
     if (viewName === 'dashboard') {
       doSearch();
     }
   }
 
   window.onload = function() {
-    // ★起動時にURLが保存されているかチェック
     if (!GAS_URL) {
-      // 保存されていなければセットアップ画面を表示
       switchView('setup');
     } else {
-      // 保存されていれば通常通り起動
       document.getElementById('mainTab').classList.remove('d-none');
       document.getElementById('currentGasUrl').value = GAS_URL;
       switchView('input');
@@ -305,39 +241,27 @@
     }
   };
 
-  // ★【新規】初期設定画面でURLを保存する処理
   function saveGasUrl() {
     const url = document.getElementById('setupGasUrl').value.trim();
     if (!url.startsWith("https://script.google.com/")) {
-      alert("正しいWebアプリURLを入力してください。\n（https://script.google.com/... で始まるURLです）");
-      return;
+      alert("正しいWebアプリURLを入力してください。"); return;
     }
-    
-    // 端末のブラウザにURLを記憶させる
     localStorage.setItem('savedGasUrl', url);
     GAS_URL = url;
     document.getElementById('currentGasUrl').value = url;
-    
-    // メニュータブを表示して入力画面へ移動
     document.getElementById('mainTab').classList.remove('d-none');
     switchView('input');
-    
-    // データの読み込みを開始
     loadAllMasterData();
   }
 
-  // ★【新規】連携を解除してリセットする処理
   function clearGasUrl() {
     if (confirm("本当に連携を解除しますか？\n再度利用するにはURLの再入力が必要になります。")) {
-      localStorage.removeItem('savedGasUrl');
-      GAS_URL = "";
-      location.reload(); // 画面を再読み込みして初期状態に戻す
+      localStorage.removeItem('savedGasUrl'); GAS_URL = ""; location.reload(); 
     }
   }
 
   async function loadAllMasterData() {
     try {
-      // 通信中表示などのUI処理を追加するとより親切です
       const response = await fetch(GAS_URL);
       const data = await response.json();
       
@@ -345,11 +269,22 @@
       globalStaffData = data.staffs; 
       
       const userSelect = document.getElementById('user');
+      const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
       userSelect.innerHTML = '<option value="">選択してください</option>';
+      multiUserCheckboxes.innerHTML = "";
+
       data.users.forEach(u => {
         if(u.status !== "退去") {
           const statusText = u.status === "入院中" ? "（入院中）" : "";
           userSelect.innerHTML += `<option value="${u.name}">${u.name} ${statusText}</option>`;
+          
+          // 複数人選択用のチェックボックス生成
+          multiUserCheckboxes.innerHTML += `
+            <div class="col-6 col-md-4">
+              <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${u.name}" value="${u.name}">
+              <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${u.name}">${u.name}</label>
+            </div>
+          `;
         }
       });
 
@@ -358,9 +293,7 @@
       const staffSelect = document.getElementById('staff');
       staffSelect.innerHTML = '<option value="">選択してください</option>';
       data.staffs.forEach(s => {
-        if (s.status === "在籍") {
-          staffSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
-        }
+        if (s.status === "在籍") staffSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
       });
 
       renderMasterLists();
@@ -370,9 +303,7 @@
       const searchTypeContainer = document.getElementById('searchTypeCheckboxContainer');
       searchTypeContainer.innerHTML = "";
       
-      let currentCategory = "";
-      let currentBody = null;
-
+      let currentCategory = ""; let currentBody = null;
       data.types.forEach((t, index) => {
         let chkColor = "btn-outline-secondary";
         if(t.category.includes("生活")) chkColor = "btn-outline-success";
@@ -393,16 +324,13 @@
 
           const header = document.createElement('div');
           header.className = `p-3 mb-1 rounded-3 ${colorClass} d-flex justify-content-between align-items-center category-header`;
-          header.style.cursor = "pointer"; header.style.fontWeight = "bold";
-          header.dataset.category = currentCategory;
+          header.style.cursor = "pointer"; header.style.fontWeight = "bold"; header.dataset.category = currentCategory;
           header.innerHTML = `<div><span>${currentCategory}</span><span class="badge bg-white text-dark ms-2 selected-badge d-none"></span></div><span class="category-arrow">🔽</span>`;
           container.appendChild(header);
 
           const body = document.createElement('div');
-          body.className = "p-3 mb-2 border rounded-3 category-body d-none row g-2 bg-white";
-          body.dataset.category = currentCategory;
-          container.appendChild(body);
-          currentBody = body;
+          body.className = "p-3 mb-2 border rounded-3 category-body d-none row g-2 bg-white"; body.dataset.category = currentCategory;
+          container.appendChild(body); currentBody = body;
 
           header.addEventListener('click', function() {
             const isHidden = body.classList.contains('d-none');
@@ -434,8 +362,8 @@
       });
 
       const savedStaff = localStorage.getItem('lastSavedStaff');
-      if(savedStaff) { staffSelect.value = savedStaff; }
-
+      if(savedStaff) staffSelect.value = savedStaff; 
+      
       await fetchInitialRecords();
 
     } catch (error) {
@@ -443,67 +371,58 @@
     }
   }
 
+  // ★複数人入力機能の操作スクリプト
+  window.toggleMultiUser = function() {
+    const isMulti = document.getElementById('multiUserSwitch').checked;
+    const userSelect = document.getElementById('user');
+    const multiContainer = document.getElementById('multiUserContainer');
+    
+    if (isMulti) {
+      userSelect.classList.add('d-none');
+      multiContainer.classList.remove('d-none');
+      userSelect.removeAttribute('required');
+    } else {
+      userSelect.classList.remove('d-none');
+      multiContainer.classList.add('d-none');
+      userSelect.setAttribute('required', 'required');
+    }
+  }
+  
+  window.selectAllUsers = function(isSelect) {
+    document.querySelectorAll('.multi-user-check').forEach(cb => { cb.checked = isSelect; });
+  }
+
   function renderMasterLists() {
     const showPastUsers = document.getElementById('showPastUsers').checked;
     const showPastStaffs = document.getElementById('showPastStaffs').checked;
-
-    const masterUserList = document.getElementById('masterUserList');
-    masterUserList.innerHTML = "";
+    const masterUserList = document.getElementById('masterUserList'); masterUserList.innerHTML = "";
     globalUserData.forEach(u => {
       if (!showPastUsers && u.status === "退去") return;
-
-      let nextStatus = "";
-      let btnColorClass = "";
+      let nextStatus = ""; let btnColorClass = "";
       if (u.status === "利用中") { nextStatus = "入院中"; btnColorClass = "btn-success"; }
       else if (u.status === "入院中") { nextStatus = "退去"; btnColorClass = "btn-warning text-dark"; }
       else { nextStatus = "利用中"; btnColorClass = "btn-danger"; }
-
       let opacityClass = u.status === "退去" ? "opacity-50 bg-light" : "";
-
-      masterUserList.innerHTML += `
-        <div class="master-list-item d-flex justify-content-between align-items-center py-2 px-3 ${opacityClass}">
-          <div><span class="fs-4 fw-bold text-dark">${u.name}</span></div>
-          <div><button class="btn ${btnColorClass} btn-lg fw-bold px-4 shadow-sm" onclick="updateMasterStatus(this, '利用者マスタ', '${u.name}', '${nextStatus}')">${u.status} 🔄</button></div>
-        </div>
-      `;
+      masterUserList.innerHTML += `<div class="master-list-item d-flex justify-content-between align-items-center py-2 px-3 ${opacityClass}"><div><span class="fs-4 fw-bold text-dark">${u.name}</span></div><div><button class="btn ${btnColorClass} btn-lg fw-bold px-4 shadow-sm" onclick="updateMasterStatus(this, '利用者マスタ', '${u.name}', '${nextStatus}')">${u.status} 🔄</button></div></div>`;
     });
-
-    const masterStaffList = document.getElementById('masterStaffList');
-    masterStaffList.innerHTML = "";
+    const masterStaffList = document.getElementById('masterStaffList'); masterStaffList.innerHTML = "";
     globalStaffData.forEach(s => {
       if (!showPastStaffs && s.status === "退職") return;
-
-      let nextStatus = s.status === "在籍" ? "退職" : "在籍";
-      let btnColorClass = s.status === "在籍" ? "btn-primary" : "bg-secondary text-white";
-      
+      let nextStatus = s.status === "在籍" ? "退職" : "在籍"; let btnColorClass = s.status === "在籍" ? "btn-primary" : "bg-secondary text-white";
       let opacityClass = s.status === "退職" ? "opacity-50 bg-light" : "";
-
-      masterStaffList.innerHTML += `
-        <div class="master-list-item d-flex justify-content-between align-items-center py-2 px-3 ${opacityClass}">
-          <div><span class="fs-4 fw-bold text-dark">${s.name}</span></div>
-          <div><button class="btn ${btnColorClass} btn-lg fw-bold px-4 shadow-sm" onclick="updateMasterStatus(this, 'スタッフマスタ', '${s.name}', '${nextStatus}')">${s.status} 🔄</button></div>
-        </div>
-      `;
+      masterStaffList.innerHTML += `<div class="master-list-item d-flex justify-content-between align-items-center py-2 px-3 ${opacityClass}"><div><span class="fs-4 fw-bold text-dark">${s.name}</span></div><div><button class="btn ${btnColorClass} btn-lg fw-bold px-4 shadow-sm" onclick="updateMasterStatus(this, 'スタッフマスタ', '${s.name}', '${nextStatus}')">${s.status} 🔄</button></div></div>`;
     });
   }
 
   async function fetchInitialRecords() {
     try {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "searchRecords" })
-      });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords" }) });
       const result = await response.json();
       if (result.status === "success") {
         globalRecords = result.records;
-        if (!document.getElementById('view-dashboard').classList.contains('d-none')) {
-          doSearch();
-        }
+        if (!document.getElementById('view-dashboard').classList.contains('d-none')) doSearch();
       }
-    } catch (e) {
-      console.error("過去データの初期一括取得に失敗しました:", e);
-    }
+    } catch (e) { console.error("データ取得エラー:", e); }
   }
 
   function filterSearchUserOptions() {
@@ -521,8 +440,7 @@
     const container = document.getElementById('searchResultsContainer');
     const records = globalRecords; 
     
-    const startDate = document.getElementById('searchStartDate').value;
-    const endDate = document.getElementById('searchEndDate').value;
+    const startDate = document.getElementById('searchStartDate').value; const endDate = document.getElementById('searchEndDate').value;
     const selectedUser = document.getElementById('searchUser').value;
     const checkedStatuses = Array.from(document.querySelectorAll('.search-status-check:checked')).map(cb => cb.value);
     const checkedTypes = Array.from(document.querySelectorAll('.search-type-check:checked')).map(cb => cb.value);
@@ -532,7 +450,6 @@
       if (startDate && rDateStr < startDate) return false;
       if (endDate && rDateStr > endDate) return false;
       if (selectedUser && r.user !== selectedUser) return false;
-
       if (checkedStatuses.length > 0) {
         const userObj = globalUserData.find(u => u.name === r.user);
         const currentStatus = userObj ? userObj.status : "";
@@ -543,21 +460,13 @@
     });
 
     container.innerHTML = "";
-    if (filtered.length === 0) {
-      container.innerHTML = '<div class="text-muted text-center p-3 fs-5">該当する記録が見つかりませんでした。</div>';
-      return;
-    }
+    if (filtered.length === 0) { container.innerHTML = '<div class="text-muted text-center p-3 fs-5">該当する記録が見つかりませんでした。</div>'; return; }
 
     filtered.forEach(r => {
-      let badgeColor = "bg-secondary";
-      if (["日常", "家族連絡", "外出・外泊", "行事参加"].some(el => r.type.includes(el))) badgeColor = "bg-success";
-      if (["体調", "受診", "入院", "救急搬送"].some(el => r.type.includes(el))) badgeColor = "bg-primary";
-      if (["ヒヤリハット", "事故", "トラブル・苦情"].some(el => r.type.includes(el))) badgeColor = "bg-danger";
-
-      let borderLeftColor = "#6c757d";
-      if (badgeColor === "bg-success") borderLeftColor = "#198754";
-      if (badgeColor === "bg-primary") borderLeftColor = "#0d6efd";
-      if (badgeColor === "bg-danger") borderLeftColor = "#dc3545";
+      let badgeColor = "bg-secondary"; let borderLeftColor = "#6c757d";
+      if (["日常", "家族連絡", "外出・外泊", "行事参加"].some(el => r.type.includes(el))) { badgeColor = "bg-success"; borderLeftColor = "#198754"; }
+      if (["体調", "受診", "入院", "救急搬送"].some(el => r.type.includes(el))) { badgeColor = "bg-primary"; borderLeftColor = "#0d6efd"; }
+      if (["ヒヤリハット", "事故", "トラブル・苦情"].some(el => r.type.includes(el))) { badgeColor = "bg-danger"; borderLeftColor = "#dc3545"; }
 
       container.innerHTML += `
         <div class="p-3 mb-3 record-card shadow-sm border" style="border-left-color: ${borderLeftColor};">
@@ -566,10 +475,65 @@
             <span class="text-muted fw-bold">${r.date}</span>
           </div>
           <p class="mb-1 fs-5 bg-light p-2 rounded text-dark" style="white-space: pre-wrap;">${r.note}</p>
-          <div class="text-end text-muted small fw-bold">記録者: ${r.staff}</div>
+          <div class="d-flex justify-content-between align-items-end mt-2">
+            <button class="btn btn-sm btn-outline-secondary fw-bold" onclick="editRecord('${r.id}')">✏️ 修正する</button>
+            <div class="text-end text-muted small fw-bold">記録者: ${r.staff}</div>
+          </div>
         </div>
       `;
     });
+  }
+
+  window.editRecord = function(id) {
+    const rec = globalRecords.find(r => r.id === id);
+    if(!rec) return;
+
+    const multiSwitch = document.getElementById('multiUserSwitch');
+    if (multiSwitch.checked) multiSwitch.click();
+    document.getElementById('multiSwitchContainer').classList.add('d-none');
+
+    document.getElementById('editRecordId').value = rec.id;
+    
+    const dateParts = rec.date.split(' ');
+    if (dateParts.length === 2) {
+      document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
+    }
+    
+    document.getElementById('user').value = rec.user;
+    document.getElementById('staff').value = rec.staff;
+    document.getElementById('note').value = rec.note;
+
+    document.querySelectorAll('.type-btn').forEach(b => {
+      b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
+      if (b.dataset.typeValue === rec.type) {
+         const activeColor = b.dataset.baseColor.replace('outline-', '');
+         b.className = `btn ${activeColor} text-white w-100 type-btn`; 
+      }
+    });
+    document.getElementById('selectedType').value = rec.type;
+    
+    document.getElementById('submitBtn').innerText = "✏️ 修正を保存する";
+    document.getElementById('submitBtn').classList.replace("btn-primary", "btn-warning");
+    document.getElementById('cancelEditBtn').classList.remove("d-none");
+    
+    switchView('input');
+    window.scrollTo(0, 0);
+  }
+
+  window.cancelEdit = function() {
+    document.getElementById('editRecordId').value = "";
+    document.getElementById('recordForm').reset();
+    
+    document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
+    document.getElementById('selectedType').value = "";
+    
+    const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    document.getElementById('date').value = now.toISOString().slice(0, 16);
+
+    document.getElementById('multiSwitchContainer').classList.remove('d-none');
+    document.getElementById('submitBtn').innerText = "登録する";
+    document.getElementById('submitBtn').classList.replace("btn-warning", "btn-primary");
+    document.getElementById('cancelEditBtn').classList.add("d-none");
   }
 
   async function addMaster(masterType) {
@@ -577,13 +541,8 @@
     const nameInput = document.getElementById(inputId); const name = nameInput.value.trim();
     if (!name) { alert("氏名を入力してください。"); return; }
     if (!confirm(`${masterType}に「${name}」を追加しますか？`)) return;
-
     try {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name })
-      });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name }) });
       const result = await response.json();
       if (result.status === "success") { alert("追加しました！"); nameInput.value = ""; await loadAllMasterData(); }
       else { alert("追加に失敗しました。"); }
@@ -591,93 +550,136 @@
   }
 
   async function updateMasterStatus(btn, masterType, name, newStatus) {
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.className = "btn btn-secondary btn-lg fw-bold px-4 shadow-sm"; 
-    btn.innerHTML = "⏳ 更新中...";
-
+    const originalText = btn.innerHTML; btn.disabled = true; btn.className = "btn btn-secondary btn-lg fw-bold px-4 shadow-sm"; btn.innerHTML = "⏳ 更新中...";
     try {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, name: name, newStatus: newStatus })
-      });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, name: name, newStatus: newStatus }) });
       const result = await response.json();
-      if (result.status === "success") {
-        await loadAllMasterData(); 
-      } else {
-        alert("更新に失敗しました。");
-        btn.disabled = false; btn.innerHTML = originalText;
-      }
-    } catch (error) {
-      alert("通信エラーが発生しました。"); console.error(error);
-      btn.disabled = false; btn.innerHTML = originalText;
-    }
+      if (result.status === "success") await loadAllMasterData(); 
+      else { alert("更新に失敗しました。"); btn.disabled = false; btn.innerHTML = originalText; }
+    } catch (error) { alert("通信エラーが発生しました。"); console.error(error); btn.disabled = false; btn.innerHTML = originalText; }
   }
 
+  // ★ 音声入力の仕組み（スマホでの連呼防止＆安全装置付き）
   const voiceBtn = document.getElementById('voiceBtn'); const noteArea = document.getElementById('note');
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
-    const recognition = new SpeechRecognition(); recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = false;
+    const recognition = new SpeechRecognition(); 
+    recognition.lang = 'ja-JP'; 
+    recognition.continuous = true; 
+    recognition.interimResults = false;
     let isRecording = false;
+    
     voiceBtn.addEventListener('click', () => {
-      if (!isRecording) { recognition.start(); voiceBtn.innerHTML = "🔴 録音中...（もう一度押すと停止）"; voiceBtn.classList.replace('btn-voice', 'btn-danger'); isRecording = true; }
-      else { recognition.stop(); voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; voiceBtn.classList.replace('btn-danger', 'btn-voice'); isRecording = false; }
+      if (!isRecording) { 
+        recognition.start(); 
+        voiceBtn.innerHTML = "🔴 録音中...（もう一度押すと停止）"; 
+        voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
+        isRecording = true; 
+      } else { 
+        recognition.stop(); 
+        voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
+        voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
+        isRecording = false; 
+      }
     });
-    recognition.onresult = (event) => { const transcript = event.results[event.results.length - 1][0].transcript; noteArea.value += transcript + " "; };
-  } else { voiceBtn.style.display = "none"; alert("このブラウザは音声入力に対応していません。"); }
+
+    recognition.onresult = (event) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript !== '') {
+        noteArea.value += finalTranscript + "\n"; 
+      }
+    };
+
+    recognition.onend = () => {
+      if (isRecording) {
+        voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）";
+        voiceBtn.classList.replace('btn-danger', 'btn-voice');
+        isRecording = false;
+      }
+    };
+    
+  } else { 
+    voiceBtn.style.display = "none"; 
+    alert("このブラウザは音声入力に対応していません。"); 
+  }
 
   document.getElementById('submitBtn').addEventListener('click', async () => {
+    const editId = document.getElementById('editRecordId').value;
+    const isEditMode = !!editId; 
+    
     const rawDate = document.getElementById('date').value;
-    const user = document.getElementById('user').value;
     const staff = document.getElementById('staff').value;
     const type = document.getElementById('selectedType').value;
     const note = document.getElementById('note').value;
 
+    let usersToSave = [];
+    
+    if (isEditMode) {
+      usersToSave = [document.getElementById('user').value];
+    } else {
+      if (document.getElementById('multiUserSwitch').checked) {
+        document.querySelectorAll('.multi-user-check:checked').forEach(cb => usersToSave.push(cb.value));
+        if (usersToSave.length === 0) { alert("👤 利用者を1名以上選択してください。"); return; }
+      } else {
+        const singleUser = document.getElementById('user').value;
+        if (!singleUser) { alert("👤 利用者名を選択してください。"); return; }
+        usersToSave.push(singleUser);
+      }
+    }
+
     if(!rawDate) { alert("📅 発生日時を入力してください。"); return; }
-    if(!user) { alert("👤 利用者名を選択してください。"); return; }
     if(!staff) { alert("📛 記録者名を選択してください。"); return; }
-    if(!type) { alert("🏷️ 種別を選択してください。\n（下のアコーディオンからボタンをタップしてください）"); return; }
+    if(!type) { alert("🏷️ 種別を選択してください。"); return; }
     if(!note || !note.trim()) { alert("📝 特記事項（記録内容）を入力してください。"); return; }
 
     const date = rawDate.replace('T', ' ').replace(/-/g, '/');
     localStorage.setItem('lastSavedStaff', staff);
 
     document.getElementById('submitBtn').style.display = 'none';
+    if(document.getElementById('cancelEditBtn')) document.getElementById('cancelEditBtn').style.display = 'none';
     document.getElementById('loading').style.display = 'block';
 
-    const payload = { date, user, staff, type, note };
+    const payload = { 
+      action: isEditMode ? "updateRecord" : "saveRecord",
+      date: date, 
+      users: usersToSave,
+      staff: staff, 
+      type: type, 
+      note: note 
+    };
+    if (isEditMode) payload.id = editId;
 
     try {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify(payload)
-      });
-      
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
       const result = await response.json();
+      
       if(result.status === "success") {
-        alert("記録を保存しました！");
+        alert(isEditMode ? "記録を修正しました！" : "記録を保存しました！");
         
-        globalRecords.unshift({
-          timestamp: new Date().toISOString(),
-          date: date,
-          user: user,
-          staff: staff,
-          type: type,
-          note: note
-        });
+        await fetchInitialRecords();
 
-        document.getElementById('note').value = "";
-        document.querySelectorAll('.type-btn').forEach(b => { const base = b.dataset.baseColor; b.className = `btn ${base} w-100 type-btn`; });
-        document.querySelectorAll('.selected-badge').forEach(b => b.classList.add('d-none'));
-        document.querySelectorAll('.category-body').forEach(b => b.classList.add('d-none'));
-        document.querySelectorAll('.category-arrow').forEach(a => a.innerText = "🔽");
-        document.getElementById('selectedType').value = "";
-        
-      } else { alert("保存に失敗しました: " + result.message); }
+        if (isEditMode) cancelEdit(); 
+        else {
+          document.getElementById('note').value = "";
+          document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
+          document.querySelectorAll('.selected-badge').forEach(b => b.classList.add('d-none'));
+          document.querySelectorAll('.category-body').forEach(b => b.classList.add('d-none'));
+          document.querySelectorAll('.category-arrow').forEach(a => a.innerText = "🔽");
+          document.getElementById('selectedType').value = "";
+          selectAllUsers(false);
+        }
+      } else { alert("処理に失敗しました: " + result.message); }
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
-    finally { document.getElementById('submitBtn').style.display = 'block'; document.getElementById('loading').style.display = 'none'; }
+    finally { 
+      document.getElementById('submitBtn').style.display = 'block'; 
+      if(document.getElementById('cancelEditBtn')) document.getElementById('cancelEditBtn').style.display = 'block';
+      document.getElementById('loading').style.display = 'none'; 
+    }
   });
 </script>
 
