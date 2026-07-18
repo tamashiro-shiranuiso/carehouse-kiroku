@@ -238,8 +238,6 @@
         
         <div id="searchConditionBody" class="mt-3 p-4 bg-light rounded-3 border d-none shadow-sm border-success">
           <div class="row g-4">
-            
-            <!-- ① 期間 -->
             <div class="col-12">
               <label class="form-label text-secondary small mb-2">① 期間</label>
               <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
@@ -249,14 +247,12 @@
               </div>
             </div>
             
-            <!-- ② 利用者 -->
             <div class="col-12">
               <div class="d-flex flex-wrap justify-content-between align-items-end mb-2">
                 <div class="d-flex gap-2 align-items-center mb-1">
                   <label class="form-label text-secondary small mb-0">② 利用者</label>
                   <span class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
                 </div>
-                
                 <div class="d-flex flex-wrap gap-3 mb-1">
                   <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="search-status-hospital" onchange="filterSearchUserOptions(); applyFilter();">
@@ -271,12 +267,10 @@
               <select id="searchUser" class="form-select form-select-lg"><option value="">全員（絞り込みなし）</option></select>
             </div>
 
-            <!-- ③ 種別 -->
             <div class="col-12">
               <label class="form-label text-secondary small d-block mb-2">③ 種別（複数選択可）</label>
               <div id="searchTypeCheckboxContainer" class="d-flex flex-wrap gap-2 p-3 border rounded bg-white shadow-sm" style="max-height: 180px; overflow-y: auto;"></div>
             </div>
-            
           </div>
           
           <div class="mt-4 text-end">
@@ -291,7 +285,6 @@
       <div id="loadMoreContainer" class="text-center mt-4 d-none">
         <button class="btn btn-secondary btn-lg fw-bold rounded-pill px-5 shadow-sm" onclick="loadMoreRecords()">🔽 もっと過去の記録を見る</button>
       </div>
-
     </div>
   </div>
 
@@ -354,20 +347,12 @@
 </div>
 
 <script>
-  // ---------------------------------------------
-  // ★ 修正③: グローバル変数をすべて appState 内へ集約
-  // ---------------------------------------------
   const appState = {
     gasUrl: localStorage.getItem('savedGasUrl') || "",
     authKey: localStorage.getItem('facilityAccessKey') || "",
     facilityId: localStorage.getItem('savedFacilityId') || "",
-    users: [],
-    staffs: [],
-    types: [],
-    records: [],
-    currentDisplayLimit: 20,
-    isFormDirty: false,
-    lastSavedRecordData: null
+    users: [], staffs: [], types: [], records: [],
+    currentDisplayLimit: 20, isFormDirty: false, lastSavedRecordData: null
   };
 
   let tapCount = 0; let tapTimer = null;
@@ -378,20 +363,11 @@
     searchPlaceholderValue: '🔍 検索...', shouldSort: false, allowHTML: true
   };
 
-  // 強固なXSSエスケープ関数
   function escapeHtml(str) {
     if (!str) return "";
-    return str.toString()
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+    return str.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  // ---------------------------------------------
-  // ★ 修正④: HTTP通信の重複コードをapi共通マクロ関数へ統一
-  // ---------------------------------------------
   async function api(action, extraData = {}) {
     const payload = { action: action, authKey: appState.authKey, ...extraData };
     const response = await fetch(appState.gasUrl, {
@@ -405,21 +381,13 @@
     return result;
   }
 
-  // ---------------------------------------------
-  // ★ 修正⑤: switchView の責務をViewManagerオブジェクトへ集約
-  // ---------------------------------------------
   const ViewManager = {
-    input: async function() {
-      document.getElementById('input-tab').classList.add('active');
-    },
+    input: async function() { document.getElementById('input-tab').classList.add('active'); },
     dashboard: async function() {
       document.getElementById('dashboard-tab').classList.add('active');
-      loadSearchConditions(); 
-      await filterSearchUserOptions(); // この内部でサーバーサイド検索(fetchRecordsFromServer)が走る
+      loadSearchConditions(); await filterSearchUserOptions();
     },
-    master: async function() {
-      renderMasterLists();
-    },
+    master: async function() { renderMasterLists(); },
     setup: async function() {}
   };
 
@@ -428,19 +396,14 @@
       if (!confirm("未保存の入力データがあります。移動するとデータが失われる可能性がありますがよろしいですか？")) return;
     }
     appState.isFormDirty = false;
-
     document.querySelectorAll('.view-section').forEach(section => section.classList.add('d-none'));
     document.querySelectorAll('#mainTab .nav-link').forEach(tab => tab.classList.remove('active'));
     
     document.getElementById(`view-${viewName}`).classList.remove('d-none');
-    if (ViewManager[viewName]) {
-      await ViewManager[viewName]();
-    }
+    if (ViewManager[viewName]) await ViewManager[viewName]();
   }
 
-  // ★ 修正⑧: window.onloadの完全一本化
   window.addEventListener('load', () => {
-    // 初回ロード時にChoices.jsの空インスタンスをはじめに構築
     userChoicesInstance = new Choices(document.getElementById('user'), choicesConfig);
     staffChoicesInstance = new Choices(document.getElementById('staff'), choicesConfig);
     searchUserChoicesInstance = new Choices(document.getElementById('searchUser'), choicesConfig);
@@ -467,55 +430,31 @@
     const id = document.getElementById('setupFacilityId').value.trim();
     const key = document.getElementById('setupAuthKey').value.trim();
     
-    if (!url.startsWith("https://script.google.com/macros/s/")) {
-      alert("正しいWebアプリURLを入力してください。"); return;
-    }
-    if (!id) {
-      alert("施設IDを入力してください。"); return;
-    }
-    if (!key || key.length < 8) {
-      alert("施設接続キーは8文字以上で設定してください。"); return;
-    }
+    if (!url.startsWith("https://script.google.com/macros/s/")) { alert("正しいWebアプリURLを入力してください。"); return; }
+    if (!id) { alert("施設IDを入力してください。"); return; }
+    if (!key || key.length < 8) { alert("施設接続キーは8文字以上で設定してください。"); return; }
     
     try {
       const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "setupSystem", authKey: key, facilityId: id }),
-        redirect: "follow"
+        method: 'POST', headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: "setupSystem", authKey: key, facilityId: id }), redirect: "follow"
       });
       const result = await response.json();
       
       if (result.status === "success") {
-        localStorage.setItem('savedGasUrl', url);
-        localStorage.setItem('facilityAccessKey', key);
-        localStorage.setItem('savedFacilityId', id);
-        appState.gasUrl = url;
-        appState.authKey = key;
-        appState.facilityId = id;
+        localStorage.setItem('savedGasUrl', url); localStorage.setItem('facilityAccessKey', key); localStorage.setItem('savedFacilityId', id);
+        appState.gasUrl = url; appState.authKey = key; appState.facilityId = id;
         
-        document.getElementById('currentGasUrl').value = url;
-        document.getElementById('currentAuthKey').value = key;
-        document.getElementById('currentFacilityId').value = id;
-        
-        document.getElementById('appHeader').classList.remove('d-none');
-        document.getElementById('mainTab').classList.remove('d-none');
-        
-        switchView('input');
-        loadAllMasterData();
-      } else {
-        alert("初期連携に失敗しました:\n" + result.message);
-      }
-    } catch(e) {
-      alert("通信エラーが発生しました。URLが正しいか確認してください。");
-    }
+        document.getElementById('currentGasUrl').value = url; document.getElementById('currentAuthKey').value = key; document.getElementById('currentFacilityId').value = id;
+        document.getElementById('appHeader').classList.remove('d-none'); document.getElementById('mainTab').classList.remove('d-none');
+        switchView('input'); loadAllMasterData();
+      } else { alert("初期連携に失敗しました:\n" + result.message); }
+    } catch(e) { alert("通信エラーが発生しました。URLが正しいか確認してください。"); }
   }
 
   function clearSystemSettings() {
     if (confirm("本当に連携を解除しますか？\n再度利用するには再入力が必要になります。")) { 
-      localStorage.removeItem('savedGasUrl'); 
-      localStorage.removeItem('facilityAccessKey');
-      localStorage.removeItem('savedFacilityId');
+      localStorage.removeItem('savedGasUrl'); localStorage.removeItem('facilityAccessKey'); localStorage.removeItem('savedFacilityId');
       location.reload(); 
     }
   }
@@ -523,27 +462,19 @@
   function handleSecretTap() {
     tapCount++; if(tapTimer) clearTimeout(tapTimer);
     tapTimer = setTimeout(() => { tapCount = 0; }, 2000); 
-    if (tapCount >= 5) {
-      document.getElementById('adminSection').classList.toggle('d-none');
-      tapCount = 0; 
-    }
+    if (tapCount >= 5) { document.getElementById('adminSection').classList.toggle('d-none'); tapCount = 0; }
   }
 
   async function loadAllMasterData() {
     try {
       const data = await api('getMaster');
-      
-      appState.users = data.users; 
-      appState.staffs = data.staffs; 
-      appState.types = data.types; 
+      appState.users = data.users; appState.staffs = data.staffs; appState.types = data.types; 
       
       renderUserList();
 
       const staffChoicesArray = [{ value: "", label: "選択してください", selected: true, disabled: true }];
       appState.staffs.forEach(s => {
-        if (s.status === "在籍") {
-          staffChoicesArray.push({ value: s.id, label: s.name });
-        }
+        if (s.status === "在籍") staffChoicesArray.push({ value: s.id, label: s.name });
       });
       staffChoicesInstance.clearChoices();
       staffChoicesInstance.setChoices(staffChoicesArray, 'value', 'label', true);
@@ -553,19 +484,14 @@
 
       renderMasterLists();
       buildTypeUI(appState.types); 
-
     } catch (error) {
-      console.error(error);
-      alert(`データの読み込みに失敗しました。\n\n【原因】\n${error.message}`);
+      console.error(error); alert(`データの読み込みに失敗しました。\n\n【原因】\n${error.message}`);
     }
   }
 
-  // ★ 修正②: destroyを完全に廃止し、setChoicesメソッドによるChoicesインスタンス使い回し高速化
-  // ★ 修正①: innerHTMLのループ連打を排除し、DocumentFragmentによるDOM生成の圧倒的高速化
   function renderUserList() {
     const showDischarged = document.getElementById('showDischargedSwitch').checked;
     const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
-    
     let currentSingleVal = document.getElementById('user').value;
     let currentMultiVals = Array.from(document.querySelectorAll('.multi-user-check:checked')).map(cb => cb.value);
 
@@ -574,14 +500,11 @@
 
     appState.users.forEach(u => {
       if (u.status === "退去" && !showDischarged) return;
-
       let displaySuffix = u.status !== "利用中" ? `（${u.status}）` : "";
-      const escapedId = escapeHtml(u.id);
-      const escapedName = escapeHtml(u.name);
+      const escapedId = escapeHtml(u.id); const escapedName = escapeHtml(u.name);
       
       singleChoicesArray.push({ value: u.id, label: `${u.name} ${displaySuffix}` });
       
-      // 複数人用DOM構築
       let isChecked = currentMultiVals.includes(u.id) ? "checked" : "";
       const colDiv = document.createElement('div');
       colDiv.className = "col-6 col-md-4";
@@ -596,11 +519,9 @@
     userChoicesInstance.setChoices(singleChoicesArray, 'value', 'label', true);
     if (currentSingleVal) userChoicesInstance.setChoiceByValue(currentSingleVal);
 
-    multiUserCheckboxes.innerHTML = "";
-    multiUserCheckboxes.appendChild(fragment);
+    multiUserCheckboxes.innerHTML = ""; multiUserCheckboxes.appendChild(fragment);
   }
 
-  // ★ 修正①: DocumentFragmentによる高速マスタ一覧の組み立て
   function renderMasterLists() {
     const userList = document.getElementById('masterUserList');
     const staffList = document.getElementById('masterStaffList');
@@ -649,9 +570,7 @@
     try {
       await api('updateMasterStatus', { masterType: masterType, id: id, newStatus: newStatus });
       await loadAllMasterData();
-    } catch (e) {
-      alert("通信エラーが発生しました。");
-    }
+    } catch (e) { alert("通信エラーが発生しました: " + e.message); }
   }
 
   function toggleMultiUser() {
@@ -673,7 +592,6 @@
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
   }
 
-  // もっと過去の記録を見る（サーバー側リクエスト数上限の加算）
   async function loadMoreRecords() {
     appState.currentDisplayLimit += 20;
     await fetchRecordsFromServer();
@@ -686,13 +604,8 @@
     
     accordionContainer.innerHTML = ""; quickContainer.innerHTML = ""; searchTypeContainer.innerHTML = "";
     
-    let topTypes = [];
-    const recentRecords = appState.records.slice(0, 100);
-    const typeCounts = {};
-    recentRecords.forEach(r => {
-      typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
-    });
-    
+    let topTypes = []; const recentRecords = appState.records.slice(0, 100); const typeCounts = {};
+    recentRecords.forEach(r => { typeCounts[r.type] = (typeCounts[r.type] || 0) + 1; });
     const sortedTypes = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
     const defaultKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
     topTypes = [...sortedTypes];
@@ -700,9 +613,7 @@
     for (let kw of defaultKeywords) {
       if (topTypes.length >= 4) break;
       const foundType = typesData.find(t => t.name.includes(kw));
-      if (foundType && !topTypes.includes(foundType.name)) {
-        topTypes.push(foundType.name);
-      }
+      if (foundType && !topTypes.includes(foundType.name)) topTypes.push(foundType.name);
     }
     topTypes = topTypes.slice(0, 4);
 
@@ -721,8 +632,7 @@
            b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`;
         });
         document.getElementById('selectedType').value = typeName;
-        stickyDisplay.style.display = "block";
-        stickyName.innerText = typeName;
+        stickyDisplay.style.display = "block"; stickyName.innerText = typeName;
       } else {
         stickyDisplay.style.display = "none";
       }
@@ -745,8 +655,7 @@
       col.appendChild(btn); quickContainer.appendChild(col);
     });
 
-    let currentCategory = ""; 
-    let currentBody = null;
+    let currentCategory = ""; let currentBody = null;
     const searchTypeFragment = document.createDocumentFragment();
     
     typesData.forEach((t, index) => {
@@ -756,8 +665,7 @@
       if(t.category.includes("リスク")) { baseColor = "btn-outline-danger"; colorClass = "bg-danger text-white"; }
 
       const escapedTypeName = escapeHtml(t.name);
-      const searchWrapper = document.createElement('div');
-      searchWrapper.style.display = "contents";
+      const searchWrapper = document.createElement('div'); searchWrapper.style.display = "contents";
       searchWrapper.innerHTML = `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${escapedTypeName}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${escapedTypeName}</label>`;
       searchTypeFragment.appendChild(searchWrapper);
 
@@ -774,8 +682,7 @@
         accordionContainer.appendChild(currentBody);
 
         header.addEventListener('click', function() {
-          const body = this.nextElementSibling;
-          const isHidden = body.classList.contains('d-none');
+          const body = this.nextElementSibling; const isHidden = body.classList.contains('d-none');
           document.querySelectorAll('.category-body').forEach(b => b.classList.add('d-none'));
           document.querySelectorAll('.category-arrow').forEach(a => a.innerText = "🔽");
           if (isHidden) { body.classList.remove('d-none'); this.querySelector('.category-arrow').innerText = "🔼"; }
@@ -793,47 +700,36 @@
 
   function saveSearchConditions() {
     const conditions = {
-      startDate: document.getElementById('searchStartDate').value,
-      endDate: document.getElementById('searchEndDate').value,
+      startDate: document.getElementById('searchStartDate').value, endDate: document.getElementById('searchEndDate').value,
       selectedUser: document.getElementById('searchUser').value,
-      includeHospital: document.getElementById('search-status-hospital').checked,
-      includeOut: document.getElementById('search-status-out').checked,
+      includeHospital: document.getElementById('search-status-hospital').checked, includeOut: document.getElementById('search-status-out').checked,
       types: Array.from(document.querySelectorAll('.search-type-check:checked')).map(cb => cb.value)
     };
     localStorage.setItem('careRecordSearchConditions', JSON.stringify(conditions));
   }
 
-  // ★ 修正①: Choices.jsがまだロードされていなくても一時退避をかけ同期バグを完全解消する仕組み
   function loadSearchConditions() {
     const saved = localStorage.getItem('careRecordSearchConditions');
     if (saved) {
       const c = JSON.parse(saved);
-      document.getElementById('searchStartDate').value = c.startDate || "";
-      document.getElementById('searchEndDate').value = c.endDate || "";
-      document.getElementById('search-status-hospital').checked = !!c.includeHospital;
-      document.getElementById('search-status-out').checked = !!c.includeOut;
-      
+      document.getElementById('searchStartDate').value = c.startDate || ""; document.getElementById('searchEndDate').value = c.endDate || "";
+      document.getElementById('search-status-hospital').checked = !!c.includeHospital; document.getElementById('search-status-out').checked = !!c.includeOut;
       const searchUserSelect = document.getElementById('searchUser');
       searchUserSelect.dataset.savedValue = c.selectedUser || "";
-      
       document.querySelectorAll('.search-type-check').forEach(cb => { cb.checked = c.types.includes(cb.value); });
     }
   }
 
   async function applyFilter() {
-    saveSearchConditions();
-    appState.currentDisplayLimit = 20;
-    await fetchRecordsFromServer();
+    saveSearchConditions(); appState.currentDisplayLimit = 20; await fetchRecordsFromServer();
   }
 
   async function clearFilter() {
     document.getElementById('searchStartDate').value = ""; document.getElementById('searchEndDate').value = "";
     searchUserChoicesInstance.setChoiceByValue("");
-    document.getElementById('search-status-hospital').checked = false;
-    document.getElementById('search-status-out').checked = false;
+    document.getElementById('search-status-hospital').checked = false; document.getElementById('search-status-out').checked = false;
     document.querySelectorAll('.search-type-check').forEach(cb => cb.checked = false);
     localStorage.removeItem('careRecordSearchConditions');
-    
     await filterSearchUserOptions();
   }
 
@@ -848,19 +744,13 @@
     }
   }
 
-  // ---------------------------------------------
-  // ★ 修正⑥: 条件が変わるたびにGASに超軽量リクエストを送る通信同期処理
-  // ---------------------------------------------
   async function fetchRecordsFromServer() {
     const checkedTypes = Array.from(document.querySelectorAll('.search-type-check:checked')).map(cb => cb.value);
     const conditions = {
-      startDate: document.getElementById('searchStartDate').value,
-      endDate: document.getElementById('searchEndDate').value,
+      startDate: document.getElementById('searchStartDate').value, endDate: document.getElementById('searchEndDate').value,
       userId: document.getElementById('searchUser').value,
-      includeHospital: document.getElementById('search-status-hospital').checked,
-      includeOut: document.getElementById('search-status-out').checked,
-      types: checkedTypes,
-      limit: appState.currentDisplayLimit
+      includeHospital: document.getElementById('search-status-hospital').checked, includeOut: document.getElementById('search-status-out').checked,
+      types: checkedTypes, limit: appState.currentDisplayLimit
     };
 
     try {
@@ -875,14 +765,10 @@
       } else {
         document.getElementById('loadMoreContainer').classList.add('d-none');
       }
-      
       doSearch();
-    } catch(e) {
-      console.error(e);
-    }
+    } catch(e) { console.error(e); }
   }
 
-  // ★ 修正①: innerHTMLの全撤廃。DocumentFragmentと一括生成によるレンダリング処理
   function doSearch() {
     const container = document.getElementById('searchResultsContainer');
     container.innerHTML = "";
@@ -901,15 +787,13 @@
 
       let noteHtml = "";
       if (r.note.length > 150) {
-        const shortNote = escapeHtml(r.note.slice(0, 150));
-        const fullNote = escapeHtml(r.note);
+        const shortNote = escapeHtml(r.note.slice(0, 150)); const fullNote = escapeHtml(r.note);
         noteHtml = `<span class="short-text">${shortNote}...<a class="toggle-text" onclick="toggleText(this)">もっと見る</a></span><span class="full-text" style="display:none;">${fullNote}<a class="toggle-text" onclick="toggleText(this)">閉じる</a></span>`;
       } else {
         noteHtml = escapeHtml(r.note);
       }
 
-      const cardDiv = document.createElement('div');
-      cardDiv.className = "col-12";
+      const cardDiv = document.createElement('div'); cardDiv.className = "col-12";
       cardDiv.innerHTML = `
         <div class="p-3 record-card shadow-sm border" style="border-left-color: ${borderLeftColor}; border-left-width: 6px;">
           <div class="d-flex justify-content-between align-items-center mb-2">
@@ -931,11 +815,9 @@
   window.toggleText = function(btn) {
     const parentSpan = btn.parentElement;
     if (parentSpan.classList.contains('short-text')) {
-      parentSpan.style.display = 'none';
-      parentSpan.nextElementSibling.style.display = 'inline';
+      parentSpan.style.display = 'none'; parentSpan.nextElementSibling.style.display = 'inline';
     } else {
-      parentSpan.style.display = 'none';
-      parentSpan.previousElementSibling.style.display = 'inline';
+      parentSpan.style.display = 'none'; parentSpan.previousElementSibling.style.display = 'inline';
     }
   };
 
@@ -945,21 +827,16 @@
 
     const uObj = appState.users.find(u => u.id === rec.userId);
     if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
-      document.getElementById('showDischargedSwitch').checked = true;
-      renderUserList();
+      document.getElementById('showDischargedSwitch').checked = true; renderUserList();
     }
 
     if (document.getElementById('multiUserSwitch').checked) document.getElementById('multiUserSwitch').click();
-    userChoicesInstance.setChoiceByValue(rec.userId);
-    staffChoicesInstance.setChoiceByValue(rec.staffId);
+    userChoicesInstance.setChoiceByValue(rec.userId); staffChoicesInstance.setChoiceByValue(rec.staffId);
 
     document.getElementById('editRecordId').value = rec.id;
     const dateParts = rec.date.split(' ');
-    if (dateParts.length === 2) {
-      document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
-    }
-    document.getElementById('note').value = rec.note;
-    updateCharCount(); 
+    if (dateParts.length === 2) document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
+    document.getElementById('note').value = rec.note; updateCharCount(); 
 
     document.querySelectorAll('.type-btn').forEach(b => {
       b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
@@ -969,38 +846,26 @@
       }
     });
     document.getElementById('selectedType').value = rec.type;
+    document.getElementById('stickyTypeDisplay').style.display = "block"; document.getElementById('stickyTypeName').innerText = rec.type;
     
-    document.getElementById('stickyTypeDisplay').style.display = "block";
-    document.getElementById('stickyTypeName').innerText = rec.type;
+    document.getElementById('submitBtn').innerText = "✏️ 修正を保存する"; document.getElementById('submitBtn').classList.replace("btn-success", "btn-warning");
+    document.getElementById('cancelEditBtn').classList.remove("d-none"); document.getElementById('editModeAlert').classList.remove('d-none');
+    document.getElementById('inputFormTitle').innerText = "支援記録 修正"; document.getElementById('copyPrevBtn').classList.add('d-none'); 
     
-    document.getElementById('submitBtn').innerText = "✏️ 修正を保存する";
-    document.getElementById('submitBtn').classList.replace("btn-success", "btn-warning");
-    document.getElementById('cancelEditBtn').classList.remove("d-none");
-    document.getElementById('editModeAlert').classList.remove('d-none');
-    document.getElementById('inputFormTitle').innerText = "支援記録 修正";
-    document.getElementById('copyPrevBtn').classList.add('d-none'); 
-    
-    switchView('input');
-    window.scrollTo(0, 0);
+    switchView('input'); window.scrollTo(0, 0);
   }
 
   window.cancelEdit = function() {
-    document.getElementById('editRecordId').value = "";
-    document.getElementById('note').value = ""; updateCharCount();
-    
+    document.getElementById('editRecordId').value = ""; document.getElementById('note').value = ""; updateCharCount();
     document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
-    document.getElementById('selectedType').value = "";
-    document.getElementById('stickyTypeDisplay').style.display = "none";
+    document.getElementById('selectedType').value = ""; document.getElementById('stickyTypeDisplay').style.display = "none";
     
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date').value = d.toISOString().slice(0, 16);
 
-    document.getElementById('submitBtn').innerText = "登録する";
-    document.getElementById('submitBtn').classList.replace("btn-warning", "btn-success");
-    document.getElementById('cancelEditBtn').classList.add("d-none");
-    document.getElementById('editModeAlert').classList.add("d-none");
+    document.getElementById('submitBtn').innerText = "登録する"; document.getElementById('submitBtn').classList.replace("btn-warning", "btn-success");
+    document.getElementById('cancelEditBtn').classList.add("d-none"); document.getElementById('editModeAlert').classList.add("d-none");
     document.getElementById('inputFormTitle').innerText = "支援記録 入力";
-    
     if(appState.lastSavedRecordData) document.getElementById('copyPrevBtn').classList.remove('d-none');
   }
 
@@ -1028,19 +893,14 @@
       if (!isRecording) { 
         baseText = noteArea.value; lastFinalTranscript = ''; lastInterimTranscript = '';
         recognition.start(); isRecording = true; appState.isFormDirty = true;
-        
-        voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
-        recordingSeconds = 0;
-        updateTimerDisplay();
+        voiceBtn.classList.replace('btn-voice', 'btn-danger'); recordingSeconds = 0; updateTimerDisplay();
         timerInterval = setInterval(() => { recordingSeconds++; updateTimerDisplay(); }, 1000);
-        
         blinkInterval = setInterval(() => { blinkFlag = !blinkFlag; renderTextarea(); }, 500);
       } else { stopRecording(); }
     });
 
     function updateTimerDisplay() {
-      const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
-      const s = String(recordingSeconds % 60).padStart(2, '0');
+      const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0'); const s = String(recordingSeconds % 60).padStart(2, '0');
       voiceBtnText.innerHTML = `🔴 録音中 ${m}:${s}（タップで停止）`;
     }
 
@@ -1065,8 +925,7 @@
     function renderTextarea() {
       let cursor = blinkFlag ? '｜' : '';
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
-      noteArea.scrollTop = noteArea.scrollHeight; 
-      updateCharCount(); 
+      noteArea.scrollTop = noteArea.scrollHeight; updateCharCount(); 
     }
 
     function stopRecording() {
@@ -1075,10 +934,7 @@
       isRecording = false; recognition.stop(); 
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript; updateCharCount();
       baseText = ''; lastFinalTranscript = ''; lastInterimTranscript = '';
-      
-      voiceBtnText.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
-      voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
-      
+      voiceBtnText.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
       const badge = document.getElementById('voiceSuccessBadge');
       badge.style.opacity = "1"; badge.style.visibility = "visible";
       setTimeout(() => { badge.style.opacity = "0"; badge.style.visibility = "hidden"; }, 1000);
@@ -1092,13 +948,11 @@
     
     const uObj = appState.users.find(u => u.id === appState.lastSavedRecordData.userId);
     if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
-      document.getElementById('showDischargedSwitch').checked = true;
-      renderUserList();
+      document.getElementById('showDischargedSwitch').checked = true; renderUserList();
     }
 
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date').value = d.toISOString().slice(0, 16);
-    
     userChoicesInstance.setChoiceByValue(appState.lastSavedRecordData.userId);
     staffChoicesInstance.setChoiceByValue(appState.lastSavedRecordData.staffId);
     
@@ -1110,11 +964,8 @@
          b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`; 
       }
     });
-    document.getElementById('stickyTypeDisplay').style.display = "block";
-    document.getElementById('stickyTypeName').innerText = appState.lastSavedRecordData.type;
-    
-    noteArea.value = appState.lastSavedRecordData.note;
-    updateCharCount();
+    document.getElementById('stickyTypeDisplay').style.display = "block"; document.getElementById('stickyTypeName').innerText = appState.lastSavedRecordData.type;
+    noteArea.value = appState.lastSavedRecordData.note; updateCharCount();
   }
 
   document.getElementById('submitBtn').addEventListener('click', async () => {
@@ -1162,10 +1013,7 @@
 
       await api(isEditMode ? "updateRecord" : "saveRecord", payload);
       
-      appState.isFormDirty = false; 
-      submitBtn.innerText = "✓ 保存しました";
-      submitBtn.classList.replace("btn-success", "btn-primary"); 
-      
+      appState.isFormDirty = false; submitBtn.innerText = "✓ 保存しました"; submitBtn.classList.replace("btn-success", "btn-primary"); 
       appState.lastSavedRecordData = { userId: usersToSave[0].id, staffId: staffParam.id, type: type, note: note };
       buildTypeUI(appState.types); 
 
@@ -1175,15 +1023,12 @@
         } else {
           document.getElementById('note').value = ""; updateCharCount();
           document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
-          document.getElementById('selectedType').value = "";
-          document.getElementById('stickyTypeDisplay').style.display = "none";
-          
+          document.getElementById('selectedType').value = ""; document.getElementById('stickyTypeDisplay').style.display = "none";
           const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
           document.getElementById('date').value = d.toISOString().slice(0, 16);
           document.getElementById('copyPrevBtn').classList.remove('d-none'); 
         }
-        submitBtn.disabled = false; submitBtn.innerText = "登録する";
-        submitBtn.classList.replace("btn-primary", "btn-success");
+        submitBtn.disabled = false; submitBtn.innerText = "登録する"; submitBtn.classList.replace("btn-primary", "btn-success");
       }, 1200); 
     } catch (error) { 
       alert("処理に失敗しました: " + error.message); 
@@ -1191,8 +1036,6 @@
     }
   });
 
-  // ★ 修正②: setChoicesによるChoicesインスタンスのクリーンな使い回し
-  // ★ 修正①: 検索画面のChoices生成にdatasetを用いた条件復元バグの完全な対策
   async function filterSearchUserOptions() {
     const searchUserSelect = document.getElementById('searchUser');
     const savedValue = searchUserSelect.dataset.savedValue || searchUserSelect.value;
@@ -1216,14 +1059,12 @@
     searchUserChoicesInstance.setChoices(searchChoicesArray, 'value', 'label', true);
     
     if (savedValue) {
-      searchUserChoicesInstance.setChoiceByValue(savedValue);
-      searchUserSelect.dataset.savedValue = ""; 
+      searchUserChoicesInstance.setChoiceByValue(savedValue); searchUserSelect.dataset.savedValue = ""; 
     }
     
     searchUserSelect.removeEventListener('change', applyFilter);
     searchUserSelect.addEventListener('change', applyFilter, false);
 
-    // 利用者選択肢の構築が終わったタイミングで、サーバーサイド検索をキック
     await fetchRecordsFromServer();
   }
 
