@@ -95,6 +95,11 @@
     /* 選択クリア用テキストボタンのスタイル */
     .btn-clear-select { cursor: pointer; user-select: none; transition: opacity 0.2s; }
     .btn-clear-select:hover { opacity: 0.7; }
+
+    /* ★ 認識完了バッジのガタつき防止フェードアニメーション用 */
+    #voiceSuccessBadge {
+      transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
   </style>
 </head>
 <body>
@@ -168,7 +173,7 @@
             </div>
 
             <div class="mb-3">
-              <!-- 記録者名ヘッダー（位置・デザインを利用者名と完全に統一） -->
+              <!-- 記録者名ヘッダー -->
               <div class="d-flex gap-2 align-items-center mb-1">
                 <label class="form-label mb-0">📛 記録者名</label>
                 <span id="staffClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('staff')">❌ 選択を消す</span>
@@ -187,7 +192,13 @@
           <div class="col-lg-6 d-flex flex-column justify-content-between">
             <div class="mb-4 flex-grow-1">
               <label class="form-label">📝 特記事項</label>
-              <button type="button" id="voiceBtn" class="btn btn-voice w-100 mb-2 p-3 rounded-3 shadow-sm">🎤 音声入力スタート（ここを押して話す）</button>
+              <button type="button" id="voiceBtn" class="btn btn-voice w-100 mb-1 p-3 rounded-3 shadow-sm">🎤 音声入力スタート（ここを押して話す）</button>
+              
+              <!-- ★【仕様改善】ガタつきを完全に防止する「1行固定枠」の認識完了表示エリア -->
+              <div class="text-center mb-1" style="min-height: 32px; line-height: 32px;">
+                <span id="voiceSuccessBadge" class="badge bg-success p-2 fs-6" style="opacity: 0; visibility: hidden;">✓ 認識完了</span>
+              </div>
+              
               <textarea id="note" class="form-control" rows="8" placeholder="ここに記録が入ります..." required></textarea>
             </div>
             <div class="d-flex gap-2">
@@ -828,7 +839,7 @@
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); btn.disabled = false; btn.innerHTML = originalText; }
   }
 
-  // ★ 音声入力エンジンの大改造（リアルタイム・カーソル追従・自動スクロール）
+  // ★ 仕様に完全準拠した超リアルタイム追従音声入力エンジン
   const voiceBtn = document.getElementById('voiceBtn'); const noteArea = document.getElementById('note');
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   
@@ -836,18 +847,18 @@
     const recognition = new SpeechRecognition(); 
     recognition.lang = 'ja-JP'; 
     recognition.continuous = true; 
-    recognition.interimResults = true; // ★ 追随性向上のため、変換途中の文字もリアルタイム取得
+    recognition.interimResults = true; // ①② リアルタイムに認識途中結果を取得する
 
     let isRecording = false;
     let blinkInterval = null;
     let blinkFlag = true;
-    let baseText = '';          // 録音開始前の元文章
-    let lastFinalTranscript = ''; // 今回のセッションで「確定」した文章
-    let lastInterimTranscript = ''; // 今回のセッションで「今まさに変換中」の文章
+    let baseText = '';            // 録音前のテキストエリアの中身
+    let lastFinalTranscript = '';   // 今回のセッションで確定した文章
+    let lastInterimTranscript = ''; // 今回のセッションで未確定の文章
     
     voiceBtn.addEventListener('click', () => {
       if (!isRecording) { 
-        baseText = noteArea.value; // 現在入っている文章を一度キープ
+        baseText = noteArea.value; 
         lastFinalTranscript = '';
         lastInterimTranscript = '';
         recognition.start(); 
@@ -855,7 +866,7 @@
         voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
         isRecording = true; 
         
-        // ★ 疑似カーソル（|）を0.5秒おきに明滅させるタイマーを起動
+        // ① 0.5秒間隔でカーソルを点滅させるタイマーを起動
         blinkInterval = setInterval(() => {
           blinkFlag = !blinkFlag;
           renderTextarea();
@@ -869,11 +880,11 @@
       lastFinalTranscript = '';
       lastInterimTranscript = '';
       
-      // 最初から現在までの音声ログをすべてスキャンし、ダブりなく再結合
+      // 全文スキャンによるダブりのないリアルタイム結合
       for (let i = 0; i < event.results.length; i++) {
         let transcript = event.results[i][0].transcript;
         
-        // スペースや記号のリアルタイムクレンジング
+        // クレンジングフィルター（無駄なスペースの除去、記号、改行・開業の置換）
         transcript = transcript.replace(/[  ]+/g, '');
         transcript = transcript
           .replace(/点|てん/g, '、')
@@ -889,11 +900,11 @@
       renderTextarea();
     };
 
-    // ★ 画面上のテキストエリアを一瞬で描き変えて、カーソルとスクロールを同期する関数
+    // ②④ 確定文字 + 変換途中文字 + 点滅カーソル を一瞬で描画し、自動スクロールさせる関数
     function renderTextarea() {
-      let cursor = blinkFlag ? '|' : '';
+      let cursor = blinkFlag ? '｜' : '';
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
-      noteArea.scrollTop = noteArea.scrollHeight; // ★ 常に最新の文字の底に画面をスクロールさせる
+      noteArea.scrollTop = noteArea.scrollHeight; // ④ 長文になっても最新位置を自動追従
     }
 
     function stopRecording() {
@@ -902,7 +913,7 @@
       isRecording = false;
       recognition.stop(); 
       
-      // 疑似カーソル（|）を完全に除去した最終確定文章をテキストエリアに保存
+      // カーソルを完全に除去したテキストを確定
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript;
       baseText = '';
       lastFinalTranscript = '';
@@ -910,6 +921,15 @@
       
       voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
       voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
+      
+      // ③ 認識完了バッジをガタつきなく約1秒間だけフェード表示する演出
+      const badge = document.getElementById('voiceSuccessBadge');
+      badge.style.opacity = "1";
+      badge.style.visibility = "visible";
+      setTimeout(() => {
+        badge.style.opacity = "0";
+        badge.style.visibility = "hidden";
+      }, 1000);
     }
 
     recognition.onend = () => {
