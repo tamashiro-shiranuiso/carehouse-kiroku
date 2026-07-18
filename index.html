@@ -126,7 +126,6 @@
 
   <!-- 記録入力画面 -->
   <div id="view-input" class="view-section d-none">
-  
     <div id="editModeAlert" class="alert alert-warning text-center fw-bold shadow-sm d-none mb-3 border-warning" style="border-width: 2px;">
       ✏️ 現在【修正モード】です。<br>
       <a href="#" onclick="cancelEdit()" class="text-danger mt-1 d-inline-block text-decoration-underline">修正をキャンセルして新規入力に戻る</a>
@@ -355,34 +354,29 @@
 </div>
 
 <script>
-  let GAS_URL = localStorage.getItem('savedGasUrl') || "";
-  let AUTH_KEY = localStorage.getItem('facilityAccessKey') || ""; 
-  let FACILITY_ID = localStorage.getItem('savedFacilityId') || "";
-  
-  let globalUserData = [];
-  let globalStaffData = []; 
-  let globalTypesData = []; 
-  let globalRecords = []; 
-  let currentDisplayLimit = 20;
-  
+  // ---------------------------------------------
+  // ★ 修正③: グローバル変数をすべて appState 内へ集約
+  // ---------------------------------------------
+  const appState = {
+    gasUrl: localStorage.getItem('savedGasUrl') || "",
+    authKey: localStorage.getItem('facilityAccessKey') || "",
+    facilityId: localStorage.getItem('savedFacilityId') || "",
+    users: [],
+    staffs: [],
+    types: [],
+    records: [],
+    currentDisplayLimit: 20,
+    isFormDirty: false,
+    lastSavedRecordData: null
+  };
+
   let tapCount = 0; let tapTimer = null;
   let userChoicesInstance = null; let staffChoicesInstance = null; let searchUserChoicesInstance = null;
-  
-  let isFormDirty = false;
-  let lastSavedRecordData = null;
 
   const choicesConfig = {
     searchEnabled: true, itemSelectText: '', noResultsText: '該当がありません', noChoicesText: '選択肢がありません',
     searchPlaceholderValue: '🔍 検索...', shouldSort: false, allowHTML: true
   };
-
-  const now = new Date();
-  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-  document.getElementById('date').value = now.toISOString().slice(0, 16);
-
-  document.getElementById('recordForm').addEventListener('input', () => {
-    isFormDirty = true;
-  });
 
   // 強固なXSSエスケープ関数
   function escapeHtml(str) {
@@ -395,37 +389,74 @@
       .replace(/'/g, "&#039;");
   }
 
-  function switchView(viewName) {
-    if (isFormDirty && !document.getElementById('view-input').classList.contains('d-none') && viewName !== 'input') {
-      if (!confirm("未保存の入力データがあります。移動するとデータが失われる可能性がありますがよろしいですか？")) {
-        return; 
-      }
+  // ---------------------------------------------
+  // ★ 修正④: HTTP通信の重複コードをapi共通マクロ関数へ統一
+  // ---------------------------------------------
+  async function api(action, extraData = {}) {
+    const payload = { action: action, authKey: appState.authKey, ...extraData };
+    const response = await fetch(appState.gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+    const result = await response.json();
+    if (result.status === "error") throw new Error(result.message);
+    return result;
+  }
+
+  // ---------------------------------------------
+  // ★ 修正⑤: switchView の責務をViewManagerオブジェクトへ集約
+  // ---------------------------------------------
+  const ViewManager = {
+    input: async function() {
+      document.getElementById('input-tab').classList.add('active');
+    },
+    dashboard: async function() {
+      document.getElementById('dashboard-tab').classList.add('active');
+      loadSearchConditions(); 
+      await filterSearchUserOptions(); // この内部でサーバーサイド検索(fetchRecordsFromServer)が走る
+    },
+    master: async function() {
+      renderMasterLists();
+    },
+    setup: async function() {}
+  };
+
+  async function switchView(viewName) {
+    if (appState.isFormDirty && !document.getElementById('view-input').classList.contains('d-none') && viewName !== 'input') {
+      if (!confirm("未保存の入力データがあります。移動するとデータが失われる可能性がありますがよろしいですか？")) return;
     }
-    isFormDirty = false;
+    appState.isFormDirty = false;
 
     document.querySelectorAll('.view-section').forEach(section => section.classList.add('d-none'));
     document.querySelectorAll('#mainTab .nav-link').forEach(tab => tab.classList.remove('active'));
-    document.getElementById(`view-${viewName}`).classList.remove('d-none');
     
-    if (viewName === 'input') {
-      document.getElementById('input-tab').classList.add('active');
-    } else if (viewName === 'dashboard') {
-      document.getElementById('dashboard-tab').classList.add('active');
-      loadSearchConditions(); 
-      doSearch();
+    document.getElementById(`view-${viewName}`).classList.remove('d-none');
+    if (ViewManager[viewName]) {
+      await ViewManager[viewName]();
     }
   }
 
-  // ★ 修正⑧: window.onloadを完全に一本化
+  // ★ 修正⑧: window.onloadの完全一本化
   window.addEventListener('load', () => {
-    if (!GAS_URL || !AUTH_KEY || !FACILITY_ID) { 
+    // 初回ロード時にChoices.jsの空インスタンスをはじめに構築
+    userChoicesInstance = new Choices(document.getElementById('user'), choicesConfig);
+    staffChoicesInstance = new Choices(document.getElementById('staff'), choicesConfig);
+    searchUserChoicesInstance = new Choices(document.getElementById('searchUser'), choicesConfig);
+
+    const dateInput = document.getElementById('date');
+    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    dateInput.value = d.toISOString().slice(0, 16);
+
+    if (!appState.gasUrl || !appState.authKey || !appState.facilityId) { 
       switchView('setup'); 
     } else {
       document.getElementById('appHeader').classList.remove('d-none');
       document.getElementById('mainTab').classList.remove('d-none');
-      document.getElementById('currentGasUrl').value = GAS_URL;
-      document.getElementById('currentAuthKey').value = AUTH_KEY;
-      document.getElementById('currentFacilityId').value = FACILITY_ID;
+      document.getElementById('currentGasUrl').value = appState.gasUrl;
+      document.getElementById('currentAuthKey').value = appState.authKey;
+      document.getElementById('currentFacilityId').value = appState.facilityId;
       switchView('input');
       loadAllMasterData();
     }
@@ -459,9 +490,9 @@
         localStorage.setItem('savedGasUrl', url);
         localStorage.setItem('facilityAccessKey', key);
         localStorage.setItem('savedFacilityId', id);
-        GAS_URL = url;
-        AUTH_KEY = key;
-        FACILITY_ID = id;
+        appState.gasUrl = url;
+        appState.authKey = key;
+        appState.facilityId = id;
         
         document.getElementById('currentGasUrl').value = url;
         document.getElementById('currentAuthKey').value = key;
@@ -485,9 +516,6 @@
       localStorage.removeItem('savedGasUrl'); 
       localStorage.removeItem('facilityAccessKey');
       localStorage.removeItem('savedFacilityId');
-      GAS_URL = ""; 
-      AUTH_KEY = "";
-      FACILITY_ID = "";
       location.reload(); 
     }
   }
@@ -503,41 +531,28 @@
 
   async function loadAllMasterData() {
     try {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "getMaster", authKey: AUTH_KEY }),
-        redirect: "follow"
-      });
-      const data = await response.json();
+      const data = await api('getMaster');
       
-      if (data.status === "error") {
-        throw new Error(data.message);
-      }
-      
-      globalUserData = data.users; 
-      globalStaffData = data.staffs; 
-      globalTypesData = data.types; 
+      appState.users = data.users; 
+      appState.staffs = data.staffs; 
+      appState.types = data.types; 
       
       renderUserList();
 
-      if (staffChoicesInstance) staffChoicesInstance.destroy();
-      const staffSelect = document.getElementById('staff');
-      staffSelect.innerHTML = '<option value="">選択してください</option>';
-      data.staffs.forEach(s => {
+      const staffChoicesArray = [{ value: "", label: "選択してください", selected: true, disabled: true }];
+      appState.staffs.forEach(s => {
         if (s.status === "在籍") {
-          staffSelect.innerHTML += `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`;
+          staffChoicesArray.push({ value: s.id, label: s.name });
         }
       });
-      staffChoicesInstance = new Choices(staffSelect, choicesConfig);
+      staffChoicesInstance.clearChoices();
+      staffChoicesInstance.setChoices(staffChoicesArray, 'value', 'label', true);
+
       const savedStaff = localStorage.getItem('lastSavedStaff');
       if(savedStaff) staffChoicesInstance.setChoiceByValue(savedStaff);
 
       renderMasterLists();
-      filterSearchUserOptions();
-      
-      await fetchInitialRecords();
-      buildTypeUI(globalTypesData); 
+      buildTypeUI(appState.types); 
 
     } catch (error) {
       console.error(error);
@@ -545,74 +560,78 @@
     }
   }
 
-  // 利用者選択欄のレンダリング (英数字ID対応)
+  // ★ 修正②: destroyを完全に廃止し、setChoicesメソッドによるChoicesインスタンス使い回し高速化
+  // ★ 修正①: innerHTMLのループ連打を排除し、DocumentFragmentによるDOM生成の圧倒的高速化
   function renderUserList() {
     const showDischarged = document.getElementById('showDischargedSwitch').checked;
-    const userSelect = document.getElementById('user');
     const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
     
-    let currentSingleVal = userSelect.value;
+    let currentSingleVal = document.getElementById('user').value;
     let currentMultiVals = Array.from(document.querySelectorAll('.multi-user-check:checked')).map(cb => cb.value);
 
-    if (userChoicesInstance) userChoicesInstance.destroy();
-    userSelect.innerHTML = '<option value="">選択してください</option>';
-    
-    let multiBuffer = [];
-    globalUserData.forEach(u => {
+    const singleChoicesArray = [{ value: "", label: "選択してください", selected: true, disabled: true }];
+    const fragment = document.createDocumentFragment();
+
+    appState.users.forEach(u => {
       if (u.status === "退去" && !showDischarged) return;
 
-      let displaySuffix = "";
-      if (u.status === "入院中") displaySuffix = "（入院中）";
-      if (u.status === "退去") displaySuffix = "（退去）";
-
+      let displaySuffix = u.status !== "利用中" ? `（${u.status}）` : "";
       const escapedId = escapeHtml(u.id);
       const escapedName = escapeHtml(u.name);
       
-      userSelect.innerHTML += `<option value="${escapedId}">${escapedName} ${displaySuffix}</option>`;
+      singleChoicesArray.push({ value: u.id, label: `${u.name} ${displaySuffix}` });
       
+      // 複数人用DOM構築
       let isChecked = currentMultiVals.includes(u.id) ? "checked" : "";
-      multiBuffer.push(`
-        <div class="col-6 col-md-4">
-          <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${escapedId}" value="${escapedId}" ${isChecked}>
-          <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${escapedId}">${escapedName}${displaySuffix}</label>
-        </div>`);
+      const colDiv = document.createElement('div');
+      colDiv.className = "col-6 col-md-4";
+      colDiv.innerHTML = `
+        <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${escapedId}" value="${escapedId}" ${isChecked}>
+        <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${escapedId}">${escapedName}${displaySuffix}</label>
+      `;
+      fragment.appendChild(colDiv);
     });
-    multiUserCheckboxes.innerHTML = multiBuffer.join('');
 
-    userChoicesInstance = new Choices(userSelect, choicesConfig);
-    if (currentSingleVal) {
-       userChoicesInstance.setChoiceByValue(currentSingleVal);
-    }
+    userChoicesInstance.clearChoices();
+    userChoicesInstance.setChoices(singleChoicesArray, 'value', 'label', true);
+    if (currentSingleVal) userChoicesInstance.setChoiceByValue(currentSingleVal);
+
+    multiUserCheckboxes.innerHTML = "";
+    multiUserCheckboxes.appendChild(fragment);
   }
 
-  // ★ 修正③: innerHTMLの一括描画(バッファ化)によるマスタ一覧表示の高速化
+  // ★ 修正①: DocumentFragmentによる高速マスタ一覧の組み立て
   function renderMasterLists() {
     const userList = document.getElementById('masterUserList');
     const staffList = document.getElementById('masterStaffList');
     
-    let userBuffer = [];
-    globalUserData.forEach(u => {
+    const userFragment = document.createDocumentFragment();
+    appState.users.forEach(u => {
       let badgeClass = u.status === "利用中" ? "bg-success" : (u.status === "入院中" ? "bg-warning text-dark" : "bg-danger");
-      userBuffer.push(`
-        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('利用者マスタ', '${escapeHtml(u.id)}', '${escapeHtml(u.name)}', '${escapeHtml(u.status)}')">
-          <span class="fs-5 fw-bold">${escapeHtml(u.name)} <small class="text-muted text-monospace">(${escapeHtml(u.id)})</small></span>
-          <span class="badge ${badgeClass} fs-6">${escapeHtml(u.status)}</span>
-        </div>
-      `);
+      const div = document.createElement('div');
+      div.className = "master-list-item d-flex justify-content-between align-items-center";
+      div.onclick = () => toggleMasterStatus('利用者マスタ', u.id, u.name, u.status);
+      div.innerHTML = `
+        <span class="fs-5 fw-bold">${escapeHtml(u.name)} <small class="text-muted text-monospace">(${escapeHtml(u.id)})</small></span>
+        <span class="badge ${badgeClass} fs-6">${escapeHtml(u.status)}</span>
+      `;
+      userFragment.appendChild(div);
     });
-    userList.innerHTML = userBuffer.join('');
+    userList.innerHTML = ""; userList.appendChild(userFragment);
 
-    let staffBuffer = [];
-    globalStaffData.forEach(s => {
+    const staffFragment = document.createDocumentFragment();
+    appState.staffs.forEach(s => {
       let badgeClass = s.status === "在籍" ? "bg-primary" : "bg-secondary";
-      staffBuffer.push(`
-        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('スタッフマスタ', '${escapeHtml(s.id)}', '${escapeHtml(s.name)}', '${escapeHtml(s.status)}')">
-          <span class="fs-5 fw-bold">${escapeHtml(s.name)} <small class="text-muted text-monospace">(${escapeHtml(s.id)})</small></span>
-          <span class="badge ${badgeClass} fs-6">${escapeHtml(s.status)}</span>
-        </div>
-      `);
+      const div = document.createElement('div');
+      div.className = "master-list-item d-flex justify-content-between align-items-center";
+      div.onclick = () => toggleMasterStatus('スタッフマスタ', s.id, s.name, s.status);
+      div.innerHTML = `
+        <span class="fs-5 fw-bold">${escapeHtml(s.name)} <small class="text-muted text-monospace">(${escapeHtml(s.id)})</small></span>
+        <span class="badge ${badgeClass} fs-6">${escapeHtml(s.status)}</span>
+      `;
+      staffFragment.appendChild(div);
     });
-    staffList.innerHTML = staffBuffer.join('');
+    staffList.innerHTML = ""; staffList.appendChild(staffFragment);
   }
 
   async function toggleMasterStatus(masterType, id, name, currentStatus) {
@@ -628,18 +647,8 @@
     if (!confirm(`「${name}」のステータスを【${newStatus}】に変更しますか？`)) return;
 
     try {
-      const response = await fetch(GAS_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, id: id, newStatus: newStatus, authKey: AUTH_KEY }),
-        redirect: "follow"
-      });
-      const result = await response.json();
-      if (result.status === "success") {
-        await loadAllMasterData();
-      } else {
-        alert("更新に失敗しました: " + result.message);
-      }
+      await api('updateMasterStatus', { masterType: masterType, id: id, newStatus: newStatus });
+      await loadAllMasterData();
     } catch (e) {
       alert("通信エラーが発生しました。");
     }
@@ -664,9 +673,10 @@
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
   }
 
-  function loadMoreRecords() {
-    currentDisplayLimit += 20;
-    doSearch();
+  // もっと過去の記録を見る（サーバー側リクエスト数上限の加算）
+  async function loadMoreRecords() {
+    appState.currentDisplayLimit += 20;
+    await fetchRecordsFromServer();
   }
 
   function buildTypeUI(typesData) {
@@ -677,7 +687,7 @@
     accordionContainer.innerHTML = ""; quickContainer.innerHTML = ""; searchTypeContainer.innerHTML = "";
     
     let topTypes = [];
-    const recentRecords = globalRecords.slice(0, 100);
+    const recentRecords = appState.records.slice(0, 100);
     const typeCounts = {};
     recentRecords.forEach(r => {
       typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
@@ -697,7 +707,7 @@
     topTypes = topTypes.slice(0, 4);
 
     const handleTypeClick = function(btnElement, typeName, baseColor) {
-      isFormDirty = true;
+      appState.isFormDirty = true;
       const isSelected = btnElement.classList.contains(baseColor.replace('outline-', ''));
       document.querySelectorAll('.type-btn').forEach(b => { b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; });
       document.getElementById('selectedType').value = "";
@@ -718,6 +728,7 @@
       }
     };
 
+    quickContainer.innerHTML = "";
     topTypes.forEach(typeName => {
       const t = typesData.find(type => type.name === typeName);
       if(!t) return;
@@ -736,7 +747,7 @@
 
     let currentCategory = ""; 
     let currentBody = null;
-    let searchTypeBuffer = [];
+    const searchTypeFragment = document.createDocumentFragment();
     
     typesData.forEach((t, index) => {
       let baseColor = "btn-outline-secondary"; let colorClass = "bg-secondary text-white";
@@ -745,7 +756,10 @@
       if(t.category.includes("リスク")) { baseColor = "btn-outline-danger"; colorClass = "bg-danger text-white"; }
 
       const escapedTypeName = escapeHtml(t.name);
-      searchTypeBuffer.push(`<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${escapedTypeName}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${escapedTypeName}</label>`);
+      const searchWrapper = document.createElement('div');
+      searchWrapper.style.display = "contents";
+      searchWrapper.innerHTML = `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${escapedTypeName}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${escapedTypeName}</label>`;
+      searchTypeFragment.appendChild(searchWrapper);
 
       if (currentCategory !== t.category) {
         currentCategory = t.category;
@@ -774,7 +788,7 @@
       btn.addEventListener('click', function() { handleTypeClick(this, t.name, baseColor); });
       colDiv.appendChild(btn); currentBody.appendChild(colDiv);
     });
-    searchTypeContainer.innerHTML = searchTypeBuffer.join('');
+    searchTypeContainer.appendChild(searchTypeFragment);
   }
 
   function saveSearchConditions() {
@@ -789,45 +803,38 @@
     localStorage.setItem('careRecordSearchConditions', JSON.stringify(conditions));
   }
 
-  // ★ 修正①: タイミング問題対策（Choices.jsが未生成でもdatasetに一旦退避させる）
+  // ★ 修正①: Choices.jsがまだロードされていなくても一時退避をかけ同期バグを完全解消する仕組み
   function loadSearchConditions() {
     const saved = localStorage.getItem('careRecordSearchConditions');
     if (saved) {
       const c = JSON.parse(saved);
       document.getElementById('searchStartDate').value = c.startDate || "";
       document.getElementById('searchEndDate').value = c.endDate || "";
-      
       document.getElementById('search-status-hospital').checked = !!c.includeHospital;
       document.getElementById('search-status-out').checked = !!c.includeOut;
       
       const searchUserSelect = document.getElementById('searchUser');
-      if (searchUserChoicesInstance) {
-        searchUserChoicesInstance.setChoiceByValue(c.selectedUser || "");
-      } else {
-        searchUserSelect.dataset.savedValue = c.selectedUser || "";
-      }
+      searchUserSelect.dataset.savedValue = c.selectedUser || "";
       
       document.querySelectorAll('.search-type-check').forEach(cb => { cb.checked = c.types.includes(cb.value); });
     }
   }
 
-  function applyFilter() {
+  async function applyFilter() {
     saveSearchConditions();
-    currentDisplayLimit = 20;
-    doSearch();
+    appState.currentDisplayLimit = 20;
+    await fetchRecordsFromServer();
   }
 
-  function clearFilter() {
+  async function clearFilter() {
     document.getElementById('searchStartDate').value = ""; document.getElementById('searchEndDate').value = "";
-    if(searchUserChoicesInstance) searchUserChoicesInstance.setChoiceByValue("");
-    
+    searchUserChoicesInstance.setChoiceByValue("");
     document.getElementById('search-status-hospital').checked = false;
     document.getElementById('search-status-out').checked = false;
-    
     document.querySelectorAll('.search-type-check').forEach(cb => cb.checked = false);
     localStorage.removeItem('careRecordSearchConditions');
-    filterSearchUserOptions();
-    currentDisplayLimit = 20; doSearch();
+    
+    await filterSearchUserOptions();
   }
 
   function toggleSearchAccordion() {
@@ -841,51 +848,52 @@
     }
   }
 
-  // ★ 修正③: innerHTMLの一括描画(バッファ化)による検索一覧表示の超高速化 (ID対応)
+  // ---------------------------------------------
+  // ★ 修正⑥: 条件が変わるたびにGASに超軽量リクエストを送る通信同期処理
+  // ---------------------------------------------
+  async function fetchRecordsFromServer() {
+    const checkedTypes = Array.from(document.querySelectorAll('.search-type-check:checked')).map(cb => cb.value);
+    const conditions = {
+      startDate: document.getElementById('searchStartDate').value,
+      endDate: document.getElementById('searchEndDate').value,
+      userId: document.getElementById('searchUser').value,
+      includeHospital: document.getElementById('search-status-hospital').checked,
+      includeOut: document.getElementById('search-status-out').checked,
+      types: checkedTypes,
+      limit: appState.currentDisplayLimit
+    };
+
+    try {
+      const result = await api('searchRecords', conditions);
+      appState.records = result.records;
+      
+      const isFilterActive = (conditions.startDate || conditions.endDate || conditions.userId || conditions.includeHospital || conditions.includeOut || checkedTypes.length > 0);
+      document.getElementById('resultTitle').innerHTML = isFilterActive ? `📋 検索結果 (${result.totalCount}件)` : "📋 最新20件";
+      
+      if (result.totalCount > appState.currentDisplayLimit && !isFilterActive) {
+        document.getElementById('loadMoreContainer').classList.remove('d-none');
+      } else {
+        document.getElementById('loadMoreContainer').classList.add('d-none');
+      }
+      
+      doSearch();
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  // ★ 修正①: innerHTMLの全撤廃。DocumentFragmentと一括生成によるレンダリング処理
   function doSearch() {
     const container = document.getElementById('searchResultsContainer');
-    const records = globalRecords; 
-    const startDate = document.getElementById('searchStartDate').value; const endDate = document.getElementById('searchEndDate').value;
-    const selectedUser = document.getElementById('searchUser').value;
+    container.innerHTML = "";
     
-    const includeHospital = document.getElementById('search-status-hospital').checked;
-    const includeOut = document.getElementById('search-status-out').checked;
-    
-    const allowedStatuses = ["利用中"];
-    if (includeHospital) allowedStatuses.push("入院中");
-    if (includeOut) allowedStatuses.push("退去");
-
-    const checkedTypes = Array.from(document.querySelectorAll('.search-type-check:checked')).map(cb => cb.value);
-
-    let isFilterActive = (startDate || endDate || selectedUser || includeHospital || includeOut || checkedTypes.length > 0);
-
-    const filtered = records.filter(r => {
-      const rDateStr = r.date.split(' ')[0].replace(/\//g, '-');
-      if (startDate && rDateStr < startDate) return false;
-      if (endDate && rDateStr > endDate) return false;
-      if (selectedUser && r.userId !== selectedUser) return false; // IDで比較
-      
-      const userObj = globalUserData.find(u => u.id === r.userId);
-      const uStatus = userObj ? userObj.status : "";
-      if (!allowedStatuses.includes(uStatus)) return false; 
-      
-      if (checkedTypes.length > 0 && !checkedTypes.includes(r.type)) return false;
-      return true;
-    });
-
-    document.getElementById('resultTitle').innerHTML = isFilterActive ? `📋 検索結果 (${filtered.length}件)` : "📋 最新20件";
-    
-    let displayRecords = isFilterActive ? filtered : filtered.slice(0, currentDisplayLimit);
-    if (!isFilterActive && filtered.length > currentDisplayLimit) {
-      document.getElementById('loadMoreContainer').classList.remove('d-none');
-    } else {
-      document.getElementById('loadMoreContainer').classList.add('d-none');
+    if (appState.records.length === 0) { 
+      container.innerHTML = '<div class="text-muted text-center p-4 fs-5 w-100">該当する記録がありません。</div>'; 
+      return; 
     }
 
-    if (displayRecords.length === 0) { container.innerHTML = '<div class="text-muted text-center p-4 fs-5 w-100">該当する記録がありません。</div>'; return; }
-
-    let htmlBuffer = [];
-    displayRecords.forEach(r => {
+    const fragment = document.createDocumentFragment();
+    appState.records.forEach(r => {
       let badgeColor = "bg-secondary"; let borderLeftColor = "#6c757d";
       if (["日常", "家族連絡", "外出・外泊", "行事参加"].some(el => r.type.includes(el))) { badgeColor = "bg-success"; borderLeftColor = "#198754"; }
       if (["体調", "受診", "入院", "救急搬送"].some(el => r.type.includes(el))) { badgeColor = "bg-primary"; borderLeftColor = "#0d6efd"; }
@@ -895,28 +903,29 @@
       if (r.note.length > 150) {
         const shortNote = escapeHtml(r.note.slice(0, 150));
         const fullNote = escapeHtml(r.note);
-        noteHtml = `<span class="short-text">${shortNote}...<a class="toggle-text" onclick="toggleText(this)">もっと見る</a></span><span class="full-text">${fullNote}<a class="toggle-text" onclick="toggleText(this)">閉じる</a></span>`;
+        noteHtml = `<span class="short-text">${shortNote}...<a class="toggle-text" onclick="toggleText(this)">もっと見る</a></span><span class="full-text" style="display:none;">${fullNote}<a class="toggle-text" onclick="toggleText(this)">閉じる</a></span>`;
       } else {
         noteHtml = escapeHtml(r.note);
       }
 
-      htmlBuffer.push(`
-        <div class="col-12">
-          <div class="p-3 record-card shadow-sm border" style="border-left-color: ${borderLeftColor}; border-left-width: 6px;">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><span class="fs-4 fw-bold text-dark">${escapeHtml(r.userName)} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${escapeHtml(r.type)}</span></div>
-              <span class="text-muted fw-bold fs-5">${escapeHtml(r.date)}</span>
-            </div>
-            <p class="mb-2 fs-5 bg-light p-3 rounded text-dark record-text" style="white-space: pre-wrap;">${noteHtml}</p>
-            <div class="d-flex justify-content-between align-items-end mt-2">
-              <button class="btn btn-sm btn-outline-secondary fw-bold px-3 py-2" onclick="editRecord('${r.id}')">✏️ 修正する</button>
-              <div class="text-end text-muted fw-bold">記録者: ${escapeHtml(r.staffName)}</div>
-            </div>
+      const cardDiv = document.createElement('div');
+      cardDiv.className = "col-12";
+      cardDiv.innerHTML = `
+        <div class="p-3 record-card shadow-sm border" style="border-left-color: ${borderLeftColor}; border-left-width: 6px;">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div><span class="fs-4 fw-bold text-dark">${escapeHtml(r.userName)} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${escapeHtml(r.type)}</span></div>
+            <span class="text-muted fw-bold fs-5">${escapeHtml(r.date)}</span>
+          </div>
+          <p class="mb-2 fs-5 bg-light p-3 rounded text-dark record-text" style="white-space: pre-wrap;">${noteHtml}</p>
+          <div class="d-flex justify-content-between align-items-end mt-2">
+            <button class="btn btn-sm btn-outline-secondary fw-bold px-3 py-2" onclick="editRecord('${r.id}')">✏️ 修正する</button>
+            <div class="text-end text-muted fw-bold">記録者: ${escapeHtml(r.staffName)}</div>
           </div>
         </div>
-      `);
+      `;
+      fragment.appendChild(cardDiv);
     });
-    container.innerHTML = htmlBuffer.join('');
+    container.appendChild(fragment);
   }
   
   window.toggleText = function(btn) {
@@ -931,18 +940,18 @@
   };
 
   window.editRecord = function(id) {
-    const rec = globalRecords.find(r => r.id === id);
+    const rec = appState.records.find(r => r.id === id);
     if(!rec) return;
 
-    const uObj = globalUserData.find(u => u.id === rec.userId);
+    const uObj = appState.users.find(u => u.id === rec.userId);
     if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
       document.getElementById('showDischargedSwitch').checked = true;
       renderUserList();
     }
 
     if (document.getElementById('multiUserSwitch').checked) document.getElementById('multiUserSwitch').click();
-    if (userChoicesInstance) userChoicesInstance.setChoiceByValue(rec.userId);
-    if (staffChoicesInstance) staffChoicesInstance.setChoiceByValue(rec.staffId);
+    userChoicesInstance.setChoiceByValue(rec.userId);
+    staffChoicesInstance.setChoiceByValue(rec.staffId);
 
     document.getElementById('editRecordId').value = rec.id;
     const dateParts = rec.date.split(' ');
@@ -976,7 +985,6 @@
   }
 
   window.cancelEdit = function() {
-    isFormDirty = false;
     document.getElementById('editRecordId').value = "";
     document.getElementById('note').value = ""; updateCharCount();
     
@@ -993,7 +1001,7 @@
     document.getElementById('editModeAlert').classList.add("d-none");
     document.getElementById('inputFormTitle').innerText = "支援記録 入力";
     
-    if(lastSavedRecordData) document.getElementById('copyPrevBtn').classList.remove('d-none');
+    if(appState.lastSavedRecordData) document.getElementById('copyPrevBtn').classList.remove('d-none');
   }
 
   const noteArea = document.getElementById('note');
@@ -1019,7 +1027,7 @@
     voiceBtn.addEventListener('click', () => {
       if (!isRecording) { 
         baseText = noteArea.value; lastFinalTranscript = ''; lastInterimTranscript = '';
-        recognition.start(); isRecording = true; isFormDirty = true;
+        recognition.start(); isRecording = true; appState.isFormDirty = true;
         
         voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
         recordingSeconds = 0;
@@ -1079,10 +1087,10 @@
   } else { voiceBtn.style.display = "none"; }
 
   window.applyLastSavedData = function() {
-    if(!lastSavedRecordData) return;
-    isFormDirty = true;
+    if(!appState.lastSavedRecordData) return;
+    appState.isFormDirty = true;
     
-    const uObj = globalUserData.find(u => u.id === lastSavedRecordData.userId);
+    const uObj = appState.users.find(u => u.id === appState.lastSavedRecordData.userId);
     if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
       document.getElementById('showDischargedSwitch').checked = true;
       renderUserList();
@@ -1091,21 +1099,21 @@
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date').value = d.toISOString().slice(0, 16);
     
-    if(userChoicesInstance && lastSavedRecordData.userId) userChoicesInstance.setChoiceByValue(lastSavedRecordData.userId);
-    if(staffChoicesInstance && lastSavedRecordData.staffId) staffChoicesInstance.setChoiceByValue(lastSavedRecordData.staffId);
+    userChoicesInstance.setChoiceByValue(appState.lastSavedRecordData.userId);
+    staffChoicesInstance.setChoiceByValue(appState.lastSavedRecordData.staffId);
     
-    document.getElementById('selectedType').value = lastSavedRecordData.type;
+    document.getElementById('selectedType').value = appState.lastSavedRecordData.type;
     document.querySelectorAll('.type-btn').forEach(b => {
       b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
-      if (b.dataset.typeValue === lastSavedRecordData.type) {
+      if (b.dataset.typeValue === appState.lastSavedRecordData.type) {
          const activeColor = b.dataset.baseColor.replace('outline-', '');
          b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`; 
       }
     });
     document.getElementById('stickyTypeDisplay').style.display = "block";
-    document.getElementById('stickyTypeName').innerText = lastSavedRecordData.type;
+    document.getElementById('stickyTypeName').innerText = appState.lastSavedRecordData.type;
     
-    noteArea.value = lastSavedRecordData.note;
+    noteArea.value = appState.lastSavedRecordData.note;
     updateCharCount();
   }
 
@@ -1118,19 +1126,19 @@
     if (isEditMode) {
       const singleUserId = document.getElementById('user').value;
       if (!singleUserId) { alert("👤 利用者名を選択してください。"); return; }
-      const uObj = globalUserData.find(u => u.id === singleUserId);
+      const uObj = appState.users.find(u => u.id === singleUserId);
       usersToSave.push({ id: uObj.id, name: uObj.name });
     } else {
       if (document.getElementById('multiUserSwitch').checked) {
         document.querySelectorAll('.multi-user-check:checked').forEach(cb => {
-          const uObj = globalUserData.find(u => u.id === cb.value);
+          const uObj = appState.users.find(u => u.id === cb.value);
           if (uObj) usersToSave.push({ id: uObj.id, name: uObj.name });
         });
         if (usersToSave.length === 0) { alert("👤 利用者を1名以上選択してください。"); return; }
       } else {
         const singleUserId = document.getElementById('user').value;
         if (!singleUserId) { alert("👤 利用者名を選択してください。"); return; }
-        const uObj = globalUserData.find(u => u.id === singleUserId);
+        const uObj = appState.users.find(u => u.id === singleUserId);
         usersToSave.push({ id: uObj.id, name: uObj.name });
       }
     }
@@ -1141,71 +1149,54 @@
     if(!note || !note.trim()) { alert("📝 特記事項（記録内容）を入力してください。"); return; }
     if(note.length > 5000) { alert("文字数が多すぎます（最大5000文字まで）。"); return; }
 
-    const sObj = globalStaffData.find(s => s.id === staffId);
+    const sObj = appState.staffs.find(s => s.id === staffId);
     const staffParam = { id: sObj.id, name: sObj.name };
-
     const date = rawDate.replace('T', ' ').replace(/-/g, '/'); localStorage.setItem('lastSavedStaff', staffId);
 
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true; submitBtn.innerText = "⏳ 保存中...";
 
-    const payload = { action: isEditMode ? "updateRecord" : "saveRecord", date: date, users: usersToSave, staff: staffParam, type: type, note: note, authKey: AUTH_KEY };
-    if (isEditMode) payload.id = editId;
-
     try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload), redirect: "follow" });
-      const result = await response.json();
-      
-      if(result.status === "success") {
-        isFormDirty = false; 
-        submitBtn.innerText = "✓ 保存しました";
-        submitBtn.classList.replace("btn-success", "btn-primary"); 
-        
-        lastSavedRecordData = { userId: usersToSave[0].id, staffId: staffParam.id, type: type, note: note };
-        
-        await fetchInitialRecords();
-        buildTypeUI(globalTypesData); 
+      const payload = { date: date, users: usersToSave, staff: staffParam, type: type, note: note };
+      if (isEditMode) payload.id = editId;
 
-        setTimeout(() => {
-          if (isEditMode) {
-            cancelEdit(); switchView('dashboard');
-          } else {
-            document.getElementById('note').value = ""; updateCharCount();
-            document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
-            document.getElementById('selectedType').value = "";
-            document.getElementById('stickyTypeDisplay').style.display = "none";
-            
-            const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-            document.getElementById('date').value = d.toISOString().slice(0, 16);
-            document.getElementById('copyPrevBtn').classList.remove('d-none'); 
-          }
-          submitBtn.disabled = false; submitBtn.innerText = "登録する";
-          submitBtn.classList.replace("btn-primary", "btn-success");
-        }, 1200); 
-      } else { 
-        alert("処理に失敗しました: " + result.message); 
-        submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
-      }
+      await api(isEditMode ? "updateRecord" : "saveRecord", payload);
+      
+      appState.isFormDirty = false; 
+      submitBtn.innerText = "✓ 保存しました";
+      submitBtn.classList.replace("btn-success", "btn-primary"); 
+      
+      appState.lastSavedRecordData = { userId: usersToSave[0].id, staffId: staffParam.id, type: type, note: note };
+      buildTypeUI(appState.types); 
+
+      setTimeout(() => {
+        if (isEditMode) {
+          cancelEdit(); switchView('dashboard');
+        } else {
+          document.getElementById('note').value = ""; updateCharCount();
+          document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
+          document.getElementById('selectedType').value = "";
+          document.getElementById('stickyTypeDisplay').style.display = "none";
+          
+          const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+          document.getElementById('date').value = d.toISOString().slice(0, 16);
+          document.getElementById('copyPrevBtn').classList.remove('d-none'); 
+        }
+        submitBtn.disabled = false; submitBtn.innerText = "登録する";
+        submitBtn.classList.replace("btn-primary", "btn-success");
+      }, 1200); 
     } catch (error) { 
-      alert("通信エラーが発生しました。"); 
+      alert("処理に失敗しました: " + error.message); 
       submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
     }
   });
 
-  function clearSelect(id) {
-    if (id === 'user' && userChoicesInstance) userChoicesInstance.setChoiceByValue("");
-    if (id === 'staff' && staffChoicesInstance) staffChoicesInstance.setChoiceByValue("");
-    if (id === 'searchUser' && searchUserChoicesInstance) { searchUserChoicesInstance.setChoiceByValue(""); doSearch(); }
-  }
-  
-  // ★ 修正①: 条件復元の完全同期ロジック
-  function filterSearchUserOptions() {
+  // ★ 修正②: setChoicesによるChoicesインスタンスのクリーンな使い回し
+  // ★ 修正①: 検索画面のChoices生成にdatasetを用いた条件復元バグの完全な対策
+  async function filterSearchUserOptions() {
     const searchUserSelect = document.getElementById('searchUser');
     const savedValue = searchUserSelect.dataset.savedValue || searchUserSelect.value;
 
-    if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
-    searchUserSelect.innerHTML = '<option value="">全員（絞り込みなし）</option>';
-    
     const includeHospital = document.getElementById('search-status-hospital').checked;
     const includeOut = document.getElementById('search-status-out').checked;
     
@@ -1213,23 +1204,27 @@
     if (includeHospital) allowedStatuses.push("入院中");
     if (includeOut) allowedStatuses.push("退去");
     
-    globalUserData.forEach(u => {
+    const searchChoicesArray = [{ value: "", label: "全員（絞り込みなし）", selected: true }];
+    appState.users.forEach(u => {
       if (allowedStatuses.includes(u.status)) {
-        let displaySuffix = "";
-        if (u.status === "入院中") displaySuffix = "（入院中）";
-        if (u.status === "退去") displaySuffix = "（退去）";
-        searchUserSelect.innerHTML += `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)} ${displaySuffix}</option>`;
+        let displaySuffix = u.status !== "利用中" ? `（${u.status}）` : "";
+        searchChoicesArray.push({ value: u.id, label: `${u.name} ${displaySuffix}` });
       }
     });
     
-    searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
+    searchUserChoicesInstance.clearChoices();
+    searchUserChoicesInstance.setChoices(searchChoicesArray, 'value', 'label', true);
     
     if (savedValue) {
       searchUserChoicesInstance.setChoiceByValue(savedValue);
       searchUserSelect.dataset.savedValue = ""; 
     }
     
+    searchUserSelect.removeEventListener('change', applyFilter);
     searchUserSelect.addEventListener('change', applyFilter, false);
+
+    // 利用者選択肢の構築が終わったタイミングで、サーバーサイド検索をキック
+    await fetchRecordsFromServer();
   }
 
   async function addMaster(masterType) {
@@ -1238,22 +1233,14 @@
     if (!name) { alert("氏名を入力してください。"); return; }
     if (!confirm(`${masterType}に「${name}」を追加しますか？`)) return;
     try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name, authKey: AUTH_KEY }), redirect: "follow" });
-      const result = await response.json();
-      if (result.status === "success") { alert("追加しました！"); nameInput.value = ""; await loadAllMasterData(); }
-      else { alert("追加に失敗しました: " + result.message); }
-    } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
+      await api('addMaster', { masterType: masterType, name: name });
+      alert("追加しました！"); nameInput.value = ""; 
+      await loadAllMasterData(); 
+    } catch (error) { alert("通信エラーが発生しました: " + error.message); }
   }
 
   async function fetchInitialRecords() {
-    try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords", authKey: AUTH_KEY }), redirect: "follow" });
-      const result = await response.json();
-      if (result.status === "success") {
-        globalRecords = result.records;
-        if (!document.getElementById('view-dashboard').classList.contains('d-none')) doSearch();
-      }
-    } catch (e) { console.error(e); }
+    await fetchRecordsFromServer();
   }
 </script>
 
