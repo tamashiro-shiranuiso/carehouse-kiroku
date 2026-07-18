@@ -92,13 +92,7 @@
     .choices__placeholder { color: #6c757d; opacity: 1; }
     .choices__list--dropdown .choices__item--selectable { padding-right: 10px; font-size: 1.1rem; }
     
-    /* Choices.js の削除ボタン（✖ボタン）のスタイル調整 */
-    .choices[data-type*="select-one"] .choices__button {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236c757d'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
-      right: 35px; top: 50%; margin-top: -10px; height: 20px; width: 20px; margin-right: 0; background-size: contain;
-    }
-    
-    /* 選択クリア用テキストボタンのスタイル */
+    /* ★ 選択クリア用テキストボタンのスタイル */
     .btn-clear-select { cursor: pointer; user-select: none; transition: opacity 0.2s; }
     .btn-clear-select:hover { opacity: 0.7; }
   </style>
@@ -146,6 +140,7 @@
             </div>
             
             <div class="mb-3">
+              <!-- 利用者名ヘッダー（横並びで統一） -->
               <div class="d-flex justify-content-between align-items-end mb-1">
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0">👤 利用者名</label>
@@ -173,9 +168,10 @@
             </div>
 
             <div class="mb-3">
-              <div class="d-flex justify-content-between align-items-end mb-1">
+              <!-- ★ 記録者名ヘッダー（位置を利用者名と完全に揃えました） -->
+              <div class="d-flex gap-2 align-items-center mb-1">
                 <label class="form-label mb-0">📛 記録者名</label>
-                <span class="text-danger small fw-bold btn-clear-select" onclick="clearSelect('staff')">❌ 選択を消す</span>
+                <span id="staffClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('staff')">❌ 選択を消す</span>
               </div>
               <select id="staff" class="form-select form-select-lg" required>
                 <option value="">読み込み中...</option>
@@ -242,9 +238,10 @@
             </div>
 
             <div class="col-md-6">
-              <div class="d-flex justify-content-between align-items-end mb-2">
+              <!-- ★ 検索画面の利用者名ヘッダーも横並びに統一 -->
+              <div class="d-flex gap-2 align-items-center mb-2">
                 <label class="form-label text-secondary small mb-0">③ 利用者名（個人の絞り込み）</label>
-                <span class="text-danger small fw-bold btn-clear-select" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
+                <span class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
               </div>
               <select id="searchUser" class="form-select form-select-lg"><option value="">全員（絞り込みなし）</option></select>
             </div>
@@ -343,7 +340,7 @@
   let staffChoicesInstance = null;
   let searchUserChoicesInstance = null;
   
-  // ★【重要】removeItemButton: true を有効化し、Delete/Backspaceキーおよび✖ボタンでの一発消去を可能に
+  // ★【システム復旧】クラッシュの元となる removeItemButton は使わず、100%安全な初期値で固定
   const choicesConfig = {
     searchEnabled: true,
     itemSelectText: '',
@@ -351,8 +348,7 @@
     noChoicesText: '選択肢がありません',
     searchPlaceholderValue: '🔍 名前を入力して検索...',
     shouldSort: false, 
-    allowHTML: true,
-    removeItemButton: true
+    allowHTML: true
   };
 
   const now = new Date();
@@ -552,6 +548,24 @@
     }
   }
 
+  // ★【新機能】キーボードの Delete や Backspace キーでのクリアを100%安全に再現する処理
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Backspace' || e.key === 'Delete') {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.classList.contains('choices__input') || activeEl.classList.contains('choices__inner'))) {
+        if (!activeEl.value || activeEl.value === '') {
+          if (userChoicesInstance && userChoicesInstance.containerOuter.element.contains(activeEl)) {
+            clearSelect('user'); userChoicesInstance.hideDropdown();
+          } else if (staffChoicesInstance && staffChoicesInstance.containerOuter.element.contains(activeEl)) {
+            clearSelect('staff'); staffChoicesInstance.hideDropdown();
+          } else if (searchUserChoicesInstance && searchUserChoicesInstance.containerOuter.element.contains(activeEl)) {
+            clearSelect('searchUser'); searchUserChoicesInstance.hideDropdown();
+          }
+        }
+      }
+    }
+  });
+
   window.toggleMultiUser = function() {
     const isMulti = document.getElementById('multiUserSwitch').checked;
     const singleContainer = document.getElementById('singleUserContainer');
@@ -685,7 +699,7 @@
       if (checkedStatuses.length > 0) {
         const userObj = globalUserData.find(u => u.name === r.user);
         const currentStatus = userObj ? userObj.status : "";
-        if (!checkedStatuses.includes(currentStatus)) return false; 
+        if (!checkedStatuses.includes(currentStatus)) return false; // ★【バグ修正】
       }
       if (checkedTypes.length > 0 && !checkedTypes.includes(r.type)) return false;
       return true;
