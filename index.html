@@ -112,13 +112,12 @@
         <label class="form-label fw-bold text-secondary">WebアプリURL (GAS)</label>
         <input type="text" id="setupGasUrl" class="form-control form-control-lg bg-light" placeholder="https://script.google.com/macros/s/...">
       </div>
-      <!-- ★ 修正③: 施設IDの入力欄を新設 -->
       <div class="mb-3">
-        <label class="form-label fw-bold text-secondary">🏢 施設ID (例: carehouse_001)</label>
-        <input type="text" id="setupFacilityId" class="form-control form-control-lg bg-light" placeholder="法人の管理ルールに沿ったIDを入力">
+        <label class="form-label fw-bold text-secondary">🏢 施設ID (将来拡張用予約項目)</label>
+        <input type="text" id="setupFacilityId" class="form-control form-control-lg bg-light" placeholder="例: carehouse_001">
       </div>
       <div class="mb-4">
-        <label class="form-label fw-bold text-secondary">🔑 施設接続キー (初回登録 / 認証用)</label>
+        <label class="form-label fw-bold text-secondary">🔑 施設接続キー (8文字以上)</label>
         <input type="password" id="setupAuthKey" class="form-control form-control-lg bg-light" placeholder="接続に必要な固有のキーを入力">
       </div>
       <button class="btn btn-primary btn-lg w-100 fw-bold p-3 shadow-sm" onclick="saveSystemSettings()">システムに連携して開始する</button>
@@ -341,7 +340,6 @@
               <input type="text" id="currentGasUrl" class="form-control bg-light text-muted" readonly>
             </div>
             <div class="mb-3">
-              <!-- ★ 修正③: 文言を「接続キー」に変更 -->
               <label class="form-label small text-muted mb-1">施設接続キー</label>
               <input type="text" id="currentAuthKey" class="form-control bg-light text-muted" readonly>
             </div>
@@ -358,7 +356,7 @@
 
 <script>
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
-  // ★ 修正③: localStorageキー名を「facilityAccessKey」と「savedFacilityId」に変更
+  // ★ 修正③: localStorageキー名を「facilityAccessKey」に統一
   let AUTH_KEY = localStorage.getItem('facilityAccessKey') || ""; 
   let FACILITY_ID = localStorage.getItem('savedFacilityId') || "";
   
@@ -433,12 +431,12 @@
     if (!id) {
       alert("施設IDを入力してください。"); return;
     }
-    if (!key) {
-      alert("施設接続キーを入力してください。"); return;
+    // ★ 修正③: フロント側でもキーが8文字以上かチェックを入れる
+    if (!key || key.length < 8) {
+      alert("施設接続キーは8文字以上で設定してください。"); return;
     }
     
     try {
-      // 登録・検証処理も完全にPOSTで行う
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
@@ -493,7 +491,6 @@
     }
   }
 
-  // ★ 修正②: マスタデータの読み込みを完全にPOST通信に統合
   async function loadAllMasterData() {
     try {
       const response = await fetch(GAS_URL, {
@@ -651,7 +648,6 @@
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
   }
 
-  // もっと過去の記録を見る
   function loadMoreRecords() {
     currentDisplayLimit += 20;
     doSearch();
@@ -1055,122 +1051,20 @@
     recognition.onend = () => { if (isRecording) stopRecording(); };
   } else { voiceBtn.style.display = "none"; }
 
-  window.applyLastSavedData = function() {
-    if(!lastSavedRecordData) return;
-    isFormDirty = true;
-    
-    const uObj = globalUserData.find(u => u.name === lastSavedRecordData.user);
-    if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
-      document.getElementById('showDischargedSwitch').checked = true;
-      renderUserList();
-    }
-
-    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    document.getElementById('date').value = d.toISOString().slice(0, 16);
-    
-    if(userChoicesInstance && lastSavedRecordData.user) userChoicesInstance.setChoiceByValue(lastSavedRecordData.user);
-    if(staffChoicesInstance && lastSavedRecordData.staff) staffChoicesInstance.setChoiceByValue(lastSavedRecordData.staff);
-    
-    document.getElementById('selectedType').value = lastSavedRecordData.type;
-    document.querySelectorAll('.type-btn').forEach(b => {
-      b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
-      if (b.dataset.typeValue === lastSavedRecordData.type) {
-         const activeColor = b.dataset.baseColor.replace('outline-', '');
-         b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`; 
-      }
-    });
-    document.getElementById('stickyTypeDisplay').style.display = "block";
-    document.getElementById('stickyTypeName').innerText = lastSavedRecordData.type;
-    
-    noteArea.value = lastSavedRecordData.note;
-    updateCharCount();
-  }
-
-  document.getElementById('submitBtn').addEventListener('click', async () => {
-    const editId = document.getElementById('editRecordId').value; const isEditMode = !!editId; 
-    const rawDate = document.getElementById('date').value; const staff = document.getElementById('staff').value;
-    const type = document.getElementById('selectedType').value; const note = document.getElementById('note').value;
-    let usersToSave = [];
-    
-    if (isEditMode) {
-      usersToSave = [document.getElementById('user').value];
-      if (!usersToSave[0]) { alert("👤 利用者名を選択してください。"); return; }
+  window.onload = function() {
+    if (!GAS_URL || !AUTH_KEY || !FACILITY_ID) { 
+      switchView('setup'); 
     } else {
-      if (document.getElementById('multiUserSwitch').checked) {
-        document.querySelectorAll('.multi-user-check:checked').forEach(cb => usersToSave.push(cb.value));
-        if (usersToSave.length === 0) { alert("👤 利用者を1名以上選択してください。"); return; }
-      } else {
-        const singleUser = document.getElementById('user').value;
-        if (!singleUser) { alert("👤 利用者名を選択してください。"); return; }
-        usersToSave.push(singleUser);
-      }
+      document.getElementById('appHeader').classList.remove('d-none');
+      document.getElementById('mainTab').classList.remove('d-none');
+      document.getElementById('currentGasUrl').value = GAS_URL;
+      document.getElementById('currentAuthKey').value = AUTH_KEY;
+      document.getElementById('currentFacilityId').value = FACILITY_ID;
+      switchView('input');
+      loadAllMasterData();
     }
+  };
 
-    if(!rawDate) { alert("📅 発生日時を入力してください。"); return; }
-    if(!staff) { alert("📛 記録者名を選択してください。"); return; }
-    if(!type) { alert("🏷️ 種別を選択してください。"); return; }
-    if(!note || !note.trim()) { alert("📝 特記事項（記録内容）を入力してください。"); return; }
-    if(note.length > 5000) { alert("文字数が多すぎます（最大5000文字まで）。"); return; }
-
-    const date = rawDate.replace('T', ' ').replace(/-/g, '/'); localStorage.setItem('lastSavedStaff', staff);
-
-    const submitBtn = document.getElementById('submitBtn');
-    submitBtn.disabled = true;
-    submitBtn.innerText = "⏳ 保存中...";
-
-    const payload = { action: isEditMode ? "updateRecord" : "saveRecord", date: date, users: usersToSave, staff: staff, type: type, note: note, authKey: AUTH_KEY };
-    if (isEditMode) payload.id = editId;
-
-    try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload), redirect: "follow" });
-      const result = await response.json();
-      
-      if(result.status === "success") {
-        isFormDirty = false; 
-        
-        submitBtn.innerText = "✓ 保存しました";
-        submitBtn.classList.replace("btn-success", "btn-primary"); 
-        
-        lastSavedRecordData = { user: usersToSave[0], staff: staff, type: type, note: note };
-        
-        await fetchInitialRecords();
-        buildTypeUI(globalTypesData); 
-
-        setTimeout(() => {
-          if (isEditMode) {
-            cancelEdit(); 
-            switchView('dashboard');
-          } else {
-            document.getElementById('note').value = ""; updateCharCount();
-            document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
-            document.getElementById('selectedType').value = "";
-            document.getElementById('stickyTypeDisplay').style.display = "none";
-            
-            const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-            document.getElementById('date').value = d.toISOString().slice(0, 16);
-            
-            document.getElementById('copyPrevBtn').classList.remove('d-none'); 
-          }
-          submitBtn.disabled = false;
-          submitBtn.innerText = "登録する";
-          submitBtn.classList.replace("btn-primary", "btn-success");
-        }, 1200); 
-      } else { 
-        alert("処理に失敗しました: " + result.message); 
-        submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
-      }
-    } catch (error) { 
-      alert("通信エラーが発生しました。"); 
-      submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
-    }
-  });
-
-  function clearSelect(id) {
-    if (id === 'user' && userChoicesInstance) userChoicesInstance.setChoiceByValue("");
-    if (id === 'staff' && staffChoicesInstance) staffChoicesInstance.setChoiceByValue("");
-    if (id === 'searchUser' && searchUserChoicesInstance) { searchUserChoicesInstance.setChoiceByValue(""); doSearch(); }
-  }
-  
   function filterSearchUserOptions() {
     if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
     const searchUserSelect = document.getElementById('searchUser');
