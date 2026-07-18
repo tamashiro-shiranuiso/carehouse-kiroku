@@ -60,7 +60,8 @@
     #note { font-size: 1.1rem; }
 
     .record-card { background-color: #faf7f0; border-radius: 12px; }
-    .master-list-item { background-color: #faf7f0; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .master-list-item { background-color: #faf7f0; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; transition: opacity 0.2s; }
+    .master-list-item:hover { opacity: 0.8; }
     .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
 
     .choices__inner {
@@ -74,15 +75,12 @@
 
     #voiceSuccessBadge { transition: opacity 0.2s ease, visibility 0.2s ease; }
     
-    /* 文字数制限用 */
     #charCount { font-weight: bold; font-size: 0.9rem; }
     
-    /* もっと見る トグル用 */
     .short-text { display: inline; }
     .full-text { display: none; }
     .toggle-text { color: #0d6efd; cursor: pointer; font-weight: bold; text-decoration: underline; margin-left: 5px;}
     
-    /* 選択中の種別固定表示 */
     #stickyTypeDisplay {
       position: sticky; top: 0; z-index: 1000;
       background: rgba(255,255,255,0.9); backdrop-filter: blur(5px);
@@ -279,7 +277,6 @@
   <!-- マスタ管理画面 -->
   <div id="view-master" class="view-section d-none">
     <div class="card p-4 view-card-master shadow-sm">
-      <!-- ★ 5回タップのガイドを復活 -->
       <div class="text-center mb-4" onclick="handleSecretTap()" style="cursor: pointer; user-select: none;">
         <h3 class="fw-bold text-secondary mb-1">⚙️ マスタ管理（名簿設定）</h3>
         <small class="text-muted" style="font-size: 0.75rem;">※管理者メニュー（連携リセット）は、上のタイトルを5回連続タップで表示されます。</small>
@@ -383,7 +380,6 @@
     }
   };
 
-  // ★ 連携URL設定時の挙動をリロードなしに修正（安定動作）
   function saveGasUrl() {
     const url = document.getElementById('setupGasUrl').value.trim();
     if (!url.startsWith("https://script.google.com/macros/s/")) {
@@ -420,7 +416,6 @@
 
   async function loadAllMasterData() {
     try {
-      // ★ 通信安定化のため明示的なオプションを追加
       const response = await fetch(GAS_URL, { redirect: "follow" });
       const data = await response.json();
       
@@ -463,6 +458,91 @@
       console.error(error);
       alert("データの読み込みに失敗しました。\n・連携URLが間違っている\n・GAS側で「新しいデプロイ」を行っていない\nなどの可能性があります。設定から連携を解除してやり直してください。");
     }
+  }
+
+  // ★ 欠落していた関数を復元：マスタリストの描画
+  function renderMasterLists() {
+    const userList = document.getElementById('masterUserList');
+    const staffList = document.getElementById('masterStaffList');
+    userList.innerHTML = ''; staffList.innerHTML = '';
+
+    globalUserData.forEach(u => {
+      let badgeClass = u.status === "利用中" ? "bg-success" : (u.status === "入院中" ? "bg-warning text-dark" : "bg-danger");
+      userList.innerHTML += `
+        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('利用者マスタ', '${u.name}', '${u.status}')">
+          <span class="fs-5 fw-bold">${u.name}</span>
+          <span class="badge ${badgeClass} fs-6">${u.status}</span>
+        </div>
+      `;
+    });
+
+    globalStaffData.forEach(s => {
+      let badgeClass = s.status === "在籍" ? "bg-primary" : "bg-secondary";
+      staffList.innerHTML += `
+        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('スタッフマスタ', '${s.name}', '${s.status}')">
+          <span class="fs-5 fw-bold">${s.name}</span>
+          <span class="badge ${badgeClass} fs-6">${s.status}</span>
+        </div>
+      `;
+    });
+  }
+
+  // ★ 欠落していた関数を復元：マスタのステータス更新
+  async function toggleMasterStatus(masterType, name, currentStatus) {
+    let newStatus = "";
+    if (masterType === "利用者マスタ") {
+      if (currentStatus === "利用中") newStatus = "入院中";
+      else if (currentStatus === "入院中") newStatus = "退去";
+      else newStatus = "利用中";
+    } else {
+      newStatus = currentStatus === "在籍" ? "退職" : "在籍";
+    }
+
+    if (!confirm(`「${name}」のステータスを【${newStatus}】に変更しますか？`)) return;
+
+    try {
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, name: name, newStatus: newStatus }),
+        redirect: "follow"
+      });
+      const result = await response.json();
+      if (result.status === "success") {
+        await loadAllMasterData();
+      } else {
+        alert("更新に失敗しました。");
+      }
+    } catch (e) {
+      alert("通信エラーが発生しました。");
+    }
+  }
+
+  // ★ 欠落していた関数を復元：複数人入力の切り替え
+  function toggleMultiUser() {
+    const isMulti = document.getElementById('multiUserSwitch').checked;
+    if (isMulti) {
+      document.getElementById('singleUserContainer').classList.add('d-none');
+      document.getElementById('multiUserContainer').classList.remove('d-none');
+      document.getElementById('userClearBtn').classList.add('d-none');
+      document.getElementById('user').required = false;
+    } else {
+      document.getElementById('singleUserContainer').classList.remove('d-none');
+      document.getElementById('multiUserContainer').classList.add('d-none');
+      document.getElementById('userClearBtn').classList.remove('d-none');
+      document.getElementById('user').required = true;
+    }
+  }
+
+  // ★ 欠落していた関数を復元：利用者の全選択/解除
+  function selectAllUsers(checked) {
+    document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
+  }
+
+  // ★ 欠落していた関数を復元：もっと過去の記録を見る
+  function loadMoreRecords() {
+    currentDisplayLimit += 20;
+    doSearch();
   }
 
   function buildTypeUI(typesData) {
