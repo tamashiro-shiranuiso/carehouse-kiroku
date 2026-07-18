@@ -119,13 +119,11 @@
   <!-- 記録入力画面 -->
   <div id="view-input" class="view-section d-none">
   
-    <!-- ★ ⑤ 編集中がもっと分かるアラート -->
     <div id="editModeAlert" class="alert alert-warning text-center fw-bold shadow-sm d-none mb-3 border-warning" style="border-width: 2px;">
       ✏️ 現在【修正モード】です。<br>
       <a href="#" onclick="cancelEdit()" class="text-danger mt-1 d-inline-block text-decoration-underline">修正をキャンセルして新規入力に戻る</a>
     </div>
 
-    <!-- ★ ⑨ 選択中種別の固定表示（スクロール追従） -->
     <div id="stickyTypeDisplay" class="text-center text-success rounded shadow-sm mb-3">
       🏷️ 選択中の種別：<span id="stickyTypeName" class="fs-5 text-dark">未選択</span>
     </div>
@@ -175,7 +173,6 @@
 
             <div class="mb-3">
               <label class="form-label">🏷️ 種別選択</label>
-              <!-- ★ ① 種別選択の2タップ解消：よく使う項目をダイレクトに表示 -->
               <div id="quickTypeContainer" class="row g-2 mb-3"></div>
               <div class="text-muted small fw-bold mb-1">▼ その他の種別（タップして展開）</div>
               <div id="typeAccordionContainer"><div class="text-muted">読み込み中...</div></div>
@@ -187,11 +184,9 @@
             <div class="mb-4 flex-grow-1">
               <label class="form-label d-flex justify-content-between">
                 <span>📝 特記事項</span>
-                <!-- ★ ③ 音声入力中に残り文字数 -->
                 <span id="charCount" class="text-muted">0 / 5000</span>
               </label>
               
-              <!-- ★ ⑥ 音声入力停止をもっと明確に (タイマー表示用spanを追加) -->
               <button type="button" id="voiceBtn" class="btn btn-voice w-100 mb-1 p-3 rounded-3 shadow-sm fs-5">
                 <span id="voiceBtnText">🎤 音声入力スタート（ここを押して話す）</span>
               </button>
@@ -200,16 +195,13 @@
                 <span id="voiceSuccessBadge" class="badge bg-success p-2 fs-6" style="opacity: 0; visibility: hidden;">✓ 認識完了</span>
               </div>
               
-              <!-- ★ 文字数制限追加 (HTML側) -->
               <textarea id="note" class="form-control" rows="8" placeholder="ここに記録が入ります..." maxlength="5000" required></textarea>
             </div>
             
             <div class="d-flex flex-column gap-2">
               <button type="button" id="cancelEditBtn" class="btn btn-secondary btn-lg fw-bold p-3 shadow d-none" onclick="cancelEdit()">やめる</button>
-              <!-- ★ ④ 保存ボタン色 (緑色 btn-success をデフォルトに) -->
               <button type="button" id="submitBtn" class="btn btn-success btn-lg w-100 p-3 rounded-3 fw-bold shadow">登録する</button>
               
-              <!-- ★ 現場最優先追加機能：直前入力のコピー -->
               <button type="button" id="copyPrevBtn" class="btn btn-outline-primary btn-lg fw-bold p-3 shadow-sm d-none mt-2" onclick="applyLastSavedData()">
                 📄 直前の入力をコピーして新規作成
               </button>
@@ -287,9 +279,12 @@
   <!-- マスタ管理画面 -->
   <div id="view-master" class="view-section d-none">
     <div class="card p-4 view-card-master shadow-sm">
+      <!-- ★ 5回タップのガイドを復活 -->
       <div class="text-center mb-4" onclick="handleSecretTap()" style="cursor: pointer; user-select: none;">
         <h3 class="fw-bold text-secondary mb-1">⚙️ マスタ管理（名簿設定）</h3>
+        <small class="text-muted" style="font-size: 0.75rem;">※管理者メニュー（連携リセット）は、上のタイトルを5回連続タップで表示されます。</small>
       </div>
+
       <div class="row g-4">
         <div class="col-md-6">
           <div class="p-3 bg-light rounded-3 border h-100">
@@ -339,10 +334,7 @@
   let tapCount = 0; let tapTimer = null;
   let userChoicesInstance = null; let staffChoicesInstance = null; let searchUserChoicesInstance = null;
   
-  // ★ ⑦ 離脱防止用フラグ
   let isFormDirty = false;
-  
-  // ★ 直前コピー用データ
   let lastSavedRecordData = null;
 
   const choicesConfig = {
@@ -354,16 +346,14 @@
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
   document.getElementById('date').value = now.toISOString().slice(0, 16);
 
-  // フォームが変更されたら dirty フラグを立てる
   document.getElementById('recordForm').addEventListener('input', () => {
     isFormDirty = true;
   });
 
   function switchView(viewName) {
-    // ★ ⑦ 未保存のまま別画面へ行こうとした際の警告
     if (isFormDirty && !document.getElementById('view-input').classList.contains('d-none') && viewName !== 'input') {
       if (!confirm("未保存の入力データがあります。移動するとデータが失われる可能性がありますがよろしいですか？")) {
-        return; // 移動キャンセル
+        return; 
       }
     }
     isFormDirty = false;
@@ -376,14 +366,15 @@
       document.getElementById('input-tab').classList.add('active');
     } else if (viewName === 'dashboard') {
       document.getElementById('dashboard-tab').classList.add('active');
-      loadSearchConditions(); // ★ ⑩ 検索条件の復元
+      loadSearchConditions(); 
       doSearch();
     }
   }
 
   window.onload = function() {
-    if (!GAS_URL) { switchView('setup'); } 
-    else {
+    if (!GAS_URL) { 
+      switchView('setup'); 
+    } else {
       document.getElementById('appHeader').classList.remove('d-none');
       document.getElementById('mainTab').classList.remove('d-none');
       document.getElementById('currentGasUrl').value = GAS_URL;
@@ -392,17 +383,30 @@
     }
   };
 
+  // ★ 連携URL設定時の挙動をリロードなしに修正（安定動作）
   function saveGasUrl() {
     const url = document.getElementById('setupGasUrl').value.trim();
     if (!url.startsWith("https://script.google.com/macros/s/")) {
-      alert("正しいWebアプリURLを入力してください。"); return;
+      alert("正しいWebアプリURLを入力してください。\n（https://script.google.com/macros/s/ から始まるURLです）"); return;
     }
+    
     localStorage.setItem('savedGasUrl', url);
-    GAS_URL = url; location.reload();
+    GAS_URL = url;
+    document.getElementById('currentGasUrl').value = url;
+    
+    document.getElementById('appHeader').classList.remove('d-none');
+    document.getElementById('mainTab').classList.remove('d-none');
+    
+    switchView('input');
+    loadAllMasterData();
   }
 
   function clearGasUrl() {
-    if (confirm("本当に連携を解除しますか？")) { localStorage.removeItem('savedGasUrl'); location.reload(); }
+    if (confirm("本当に連携を解除しますか？\n再度利用するにはURLの再入力が必要になります。")) { 
+      localStorage.removeItem('savedGasUrl'); 
+      GAS_URL = ""; 
+      location.reload(); 
+    }
   }
 
   function handleSecretTap() {
@@ -416,8 +420,14 @@
 
   async function loadAllMasterData() {
     try {
-      const response = await fetch(GAS_URL);
+      // ★ 通信安定化のため明示的なオプションを追加
+      const response = await fetch(GAS_URL, { redirect: "follow" });
       const data = await response.json();
+      
+      if (!data || !data.users || !data.types) {
+        throw new Error("受信したデータの形式が不正です");
+      }
+      
       globalUserData = data.users; globalStaffData = data.staffs; 
       
       if (userChoicesInstance) userChoicesInstance.destroy();
@@ -450,11 +460,11 @@
       await fetchInitialRecords();
 
     } catch (error) {
-      alert("マスタデータの読み込みに失敗しました。");
+      console.error(error);
+      alert("データの読み込みに失敗しました。\n・連携URLが間違っている\n・GAS側で「新しいデプロイ」を行っていない\nなどの可能性があります。設定から連携を解除してやり直してください。");
     }
   }
 
-  // ★ ① 種別UIの構築（よく使うものを上にダイレクト表示）
   function buildTypeUI(typesData) {
     const accordionContainer = document.getElementById('typeAccordionContainer');
     const quickContainer = document.getElementById('quickTypeContainer');
@@ -462,9 +472,7 @@
     
     accordionContainer.innerHTML = ""; quickContainer.innerHTML = ""; searchTypeContainer.innerHTML = "";
     
-    // 現場で非常によく使う種別キーワード
     const quickKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
-    
     let currentCategory = ""; let currentBody = null;
     
     typesData.forEach((t, index) => {
@@ -475,26 +483,21 @@
 
       searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${t.name}"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${t.name}</label>`;
 
-      // クリック時の共通処理
       const handleClick = function(btnElement) {
         isFormDirty = true;
         const isSelected = btnElement.classList.contains(baseColor.replace('outline-', ''));
         document.querySelectorAll('.type-btn').forEach(b => { b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; });
         document.getElementById('selectedType').value = "";
         
-        // ⑨ 固定表示用
         const stickyDisplay = document.getElementById('stickyTypeDisplay');
         const stickyName = document.getElementById('stickyTypeName');
 
         if (!isSelected) {
           const activeColor = baseColor.replace('outline-', '');
-          
-          // 同じ value を持つすべてのボタンをアクティブにする
           document.querySelectorAll(`.type-btn[data-type-value="${t.name}"]`).forEach(b => {
              b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`;
           });
           document.getElementById('selectedType').value = t.name;
-          
           stickyDisplay.style.display = "block";
           stickyName.innerText = t.name;
         } else {
@@ -502,7 +505,6 @@
         }
       };
 
-      // クイックアクセス用ボタンの作成
       if (quickKeywords.some(kw => t.name.includes(kw))) {
         const col = document.createElement('div'); col.className = "col-6";
         const btn = document.createElement('button'); btn.type = "button";
@@ -512,7 +514,6 @@
         col.appendChild(btn); quickContainer.appendChild(col);
       }
 
-      // アコーディオン用の作成
       if (currentCategory !== t.category) {
         currentCategory = t.category;
         const header = document.createElement('div');
@@ -541,7 +542,6 @@
     });
   }
 
-  // ★ ⑩ 検索条件の保存・復元
   function saveSearchConditions() {
     const conditions = {
       startDate: document.getElementById('searchStartDate').value,
@@ -635,7 +635,6 @@
       if (["体調", "受診", "入院", "救急搬送"].some(el => r.type.includes(el))) { badgeColor = "bg-primary"; borderLeftColor = "#0d6efd"; }
       if (["ヒヤリハット", "事故", "トラブル・苦情"].some(el => r.type.includes(el))) { badgeColor = "bg-danger"; borderLeftColor = "#dc3545"; }
 
-      // ★ ⑪ 長いテキストの折りたたみ処理（150文字）
       let noteHtml = "";
       if (r.note.length > 150) {
         const shortNote = r.note.slice(0, 150).replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -688,7 +687,7 @@
       document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
     }
     document.getElementById('note').value = rec.note;
-    updateCharCount(); // 文字数更新
+    updateCharCount(); 
 
     document.querySelectorAll('.type-btn').forEach(b => {
       b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
@@ -699,17 +698,15 @@
     });
     document.getElementById('selectedType').value = rec.type;
     
-    // ⑨ 固定表示
     document.getElementById('stickyTypeDisplay').style.display = "block";
     document.getElementById('stickyTypeName').innerText = rec.type;
     
-    // ★ ④ ⑤ 編集モードUIの変更
     document.getElementById('submitBtn').innerText = "✏️ 修正を保存する";
     document.getElementById('submitBtn').classList.replace("btn-success", "btn-warning");
     document.getElementById('cancelEditBtn').classList.remove("d-none");
     document.getElementById('editModeAlert').classList.remove('d-none');
     document.getElementById('inputFormTitle').innerText = "支援記録 修正";
-    document.getElementById('copyPrevBtn').classList.add('d-none'); // 修正中は直前コピー隠す
+    document.getElementById('copyPrevBtn').classList.add('d-none'); 
     
     switchView('input');
     window.scrollTo(0, 0);
@@ -736,7 +733,6 @@
     if(lastSavedRecordData) document.getElementById('copyPrevBtn').classList.remove('d-none');
   }
 
-  // 文字数カウントの更新
   const noteArea = document.getElementById('note');
   const charCountDisplay = document.getElementById('charCount');
   function updateCharCount() {
@@ -747,7 +743,6 @@
   }
   noteArea.addEventListener('input', updateCharCount);
 
-  // ★ ⑥ 音声入力 UI改善
   const voiceBtn = document.getElementById('voiceBtn'); 
   const voiceBtnText = document.getElementById('voiceBtnText');
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -800,7 +795,7 @@
       let cursor = blinkFlag ? '｜' : '';
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
       noteArea.scrollTop = noteArea.scrollHeight; 
-      updateCharCount(); // 文字数更新
+      updateCharCount(); 
     }
 
     function stopRecording() {
@@ -820,20 +815,16 @@
     recognition.onend = () => { if (isRecording) stopRecording(); };
   } else { voiceBtn.style.display = "none"; }
 
-  // 直前コピー実行関数
   window.applyLastSavedData = function() {
     if(!lastSavedRecordData) return;
     isFormDirty = true;
     
-    // 日時は現在に
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date').value = d.toISOString().slice(0, 16);
     
-    // ユーザー・スタッフ復元 (保存後クリアされない仕様だが念のため)
     if(userChoicesInstance && lastSavedRecordData.user) userChoicesInstance.setChoiceByValue(lastSavedRecordData.user);
     if(staffChoicesInstance && lastSavedRecordData.staff) staffChoicesInstance.setChoiceByValue(lastSavedRecordData.staff);
     
-    // 種別復元
     document.getElementById('selectedType').value = lastSavedRecordData.type;
     document.querySelectorAll('.type-btn').forEach(b => {
       b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
@@ -845,12 +836,10 @@
     document.getElementById('stickyTypeDisplay').style.display = "block";
     document.getElementById('stickyTypeName').innerText = lastSavedRecordData.type;
     
-    // メモ復元
     noteArea.value = lastSavedRecordData.note;
     updateCharCount();
   }
 
-  // 送信処理
   document.getElementById('submitBtn').addEventListener('click', async () => {
     const editId = document.getElementById('editRecordId').value; const isEditMode = !!editId; 
     const rawDate = document.getElementById('date').value; const staff = document.getElementById('staff').value;
@@ -879,7 +868,6 @@
 
     const date = rawDate.replace('T', ' ').replace(/-/g, '/'); localStorage.setItem('lastSavedStaff', staff);
 
-    // ★ ⑫ ダブルタップ防止 (ボタンの無効化)
     const submitBtn = document.getElementById('submitBtn');
     submitBtn.disabled = true;
     submitBtn.innerText = "⏳ 保存中...";
@@ -888,17 +876,15 @@
     if (isEditMode) payload.id = editId;
 
     try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload) });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload), redirect: "follow" });
       const result = await response.json();
       
       if(result.status === "success") {
-        isFormDirty = false; // 離脱防止フラグ解除
+        isFormDirty = false; 
         
-        // ★ ⑫ 成功フィードバック
         submitBtn.innerText = "✓ 保存しました";
-        submitBtn.classList.replace("btn-success", "btn-primary"); // 瞬間的に色を変えて強調
+        submitBtn.classList.replace("btn-success", "btn-primary"); 
         
-        // ★ 現場最優先追加機能：直前入力データを記録
         lastSavedRecordData = { user: usersToSave[0], staff: staff, type: type, note: note };
         
         await fetchInitialRecords();
@@ -906,25 +892,22 @@
         setTimeout(() => {
           if (isEditMode) {
             cancelEdit(); 
-            // ★ ⑧ 修正後は検索画面へ戻る
             switchView('dashboard');
           } else {
-            // ★ ② 保存後に利用者・記録者は保持し、種別・メモをクリア
             document.getElementById('note').value = ""; updateCharCount();
             document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
             document.getElementById('selectedType').value = "";
             document.getElementById('stickyTypeDisplay').style.display = "none";
             
-            // 日時を現在時刻にリセット
             const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
             document.getElementById('date').value = d.toISOString().slice(0, 16);
             
-            document.getElementById('copyPrevBtn').classList.remove('d-none'); // 直前コピーボタン表示
+            document.getElementById('copyPrevBtn').classList.remove('d-none'); 
           }
           submitBtn.disabled = false;
           submitBtn.innerText = "登録する";
           submitBtn.classList.replace("btn-primary", "btn-success");
-        }, 1200); // 1.2秒後に元に戻す
+        }, 1200); 
       } else { 
         alert("処理に失敗しました: " + result.message); 
         submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
@@ -954,9 +937,22 @@
     searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
   }
 
+  async function addMaster(masterType) {
+    const inputId = masterType === "利用者マスタ" ? "newUserName" : "newStaffName";
+    const nameInput = document.getElementById(inputId); const name = nameInput.value.trim();
+    if (!name) { alert("氏名を入力してください。"); return; }
+    if (!confirm(`${masterType}に「${name}」を追加しますか？`)) return;
+    try {
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name }), redirect: "follow" });
+      const result = await response.json();
+      if (result.status === "success") { alert("追加しました！"); nameInput.value = ""; await loadAllMasterData(); }
+      else { alert("追加に失敗しました。"); }
+    } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
+  }
+
   async function fetchInitialRecords() {
     try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords" }) });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords" }), redirect: "follow" });
       const result = await response.json();
       if (result.status === "success") {
         globalRecords = result.records;
