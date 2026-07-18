@@ -32,7 +32,7 @@
       font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
     }
 
-    /* ★ 目に優しいライトベージュ（ミルクティー色）背景の設定 */
+    /* 目に優しいライトベージュ（ミルクティー色）背景の設定 */
     .card { 
       border-radius: 15px; 
       box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
@@ -57,7 +57,7 @@
       color: #838a91; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
       transition: background-color 0.2s, color 0.2s;
     }
-    .nav-pills .nav-link:hover { background-color: #ebe6db; } /* ホバー時もベージュ系グレー */
+    .nav-pills .nav-link:hover { background-color: #ebe6db; }
     #input-tab.active { background-color: #0d6efd !important; color: #fff !important; }
     #dashboard-tab.active { background-color: #198754 !important; color: #fff !important; }
 
@@ -70,7 +70,6 @@
     .type-btn { font-size: 1.05rem; padding: 12px 10px; font-weight: bold; }
     #note { font-size: 1.1rem; }
 
-    /* 検索結果のカードやリスト要素もライトベージュ系に合わせる */
     .record-card { background-color: #faf7f0; border-radius: 12px; }
     .master-list-item { background-color: #faf7f0; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
@@ -800,6 +799,7 @@
       }
     });
 
+    // ★ 音声入力の結果を受け取る処理（ここでスペースを自動削除します）
     recognition.onresult = (event) => {
       let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -808,6 +808,8 @@
         }
       }
       if (finalTranscript !== '') {
+        // ★ 余計な半角・全角スペースをすべて削除（改行は残す）
+        finalTranscript = finalTranscript.replace(/[  ]+/g, '');
         noteArea.value += finalTranscript + "\n"; 
       }
     };
