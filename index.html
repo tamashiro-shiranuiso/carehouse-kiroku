@@ -4,27 +4,52 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ケアハウス記録管理システム</title>
+  
+  <!-- ★ Webフォント（Zen Maru Gothic）の読み込み -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+  
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
   <style>
-    body { background-color: #f8f9fa; padding: 20px 10px; }
+    /* ★ ベースのフォント設定（本文は読みやすい標準ゴシック、文字色は目に優しい濃いグレー） */
+    body { 
+      background-color: #f8f9fa; 
+      padding: 20px 10px; 
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+      color: #3b4045; 
+    }
+    
+    /* ★ 見出し、ボタン、タブなどの「案内UI」には丸ゴシックを適用して柔らかく */
+    h1, h2, h3, h4, h5, h6, .nav-link, .btn, .category-header, .search-checkbox-label, .form-label {
+      font-family: 'Zen Maru Gothic', sans-serif;
+    }
+
+    /* 入力欄や記録本文の中身は標準ゴシックを維持（誤読防止） */
+    .form-control, .form-select, .record-text {
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+    }
+
     .card { border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    .form-label { font-weight: bold; color: #495057; font-size: 1.1rem; }
+    .form-label { font-weight: bold; font-size: 1.1rem; }
     .btn-voice { background-color: #ffc107; color: #000; font-weight: bold; }
     #loading { display: none; color: #0d6efd; font-weight: bold; text-align: center; margin-top: 10px; }
     
-    /* ★ タブのデザイン変更（色分け・非選択時の調整） */
+    /* タブのデザイン（非選択時は控えめに、選択時はテーマカラーへ） */
     .nav-pills .nav-link { 
       font-size: 1.15rem; font-weight: bold; padding: 15px; border-radius: 10px; 
-      color: #6c757d; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+      color: #838a91; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
       transition: background-color 0.2s, color 0.2s;
     }
     .nav-pills .nav-link:hover { background-color: #f1f3f5; }
+    
     /* 入力タブ（アクティブ時＝青） */
     #input-tab.active { background-color: #0d6efd !important; color: #fff !important; }
     /* 検索タブ（アクティブ時＝緑） */
     #dashboard-tab.active { background-color: #198754 !important; color: #fff !important; }
 
-    /* ★ 画面ごとのカード上部フチ色設定 */
+    /* 画面ごとのカード上部フチ色設定（タブの色と連動） */
     .view-card-input { border-top: 6px solid #0d6efd; }
     .view-card-dashboard { border-top: 6px solid #198754; }
     .view-card-master { border-top: 6px solid #6c757d; }
@@ -34,8 +59,8 @@
     .type-btn { font-size: 1.05rem; padding: 12px 10px; font-weight: bold; }
     #note { font-size: 1.1rem; }
 
-    .record-card { background-color: #fff; border-radius: 10px; }
-    .master-list-item { background-color: #fff; border-radius: 8px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .record-card { background-color: #fff; border-radius: 12px; }
+    .master-list-item { background-color: #fff; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
     .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
   </style>
@@ -44,13 +69,13 @@
 
 <div class="container-xl">
   
-  <!-- ★ アプリヘッダー（タイトルと設定ボタンを分離して右上に配置） -->
+  <!-- アプリヘッダー -->
   <div id="appHeader" class="d-none d-flex justify-content-between align-items-center mb-3 px-2">
     <h1 class="h5 mb-0 fw-bold text-secondary">ケアハウス記録管理システム</h1>
     <button class="btn btn-outline-secondary btn-sm fw-bold px-3 py-2 shadow-sm" onclick="switchView('master')">⚙️ 設定</button>
   </div>
 
-  <!-- ★ メインタブ（2つに集約して巨大化） -->
+  <!-- メインタブ（2つ） -->
   <ul class="nav nav-pills nav-fill gap-3 mb-4 d-none" id="mainTab" role="tablist">
     <li class="nav-item"><button class="nav-link active" id="input-tab" onclick="switchView('input')">📝 記録を入力する</button></li>
     <li class="nav-item"><button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">👀 記録の確認・検索</button></li>
@@ -204,6 +229,7 @@
   <!-- マスタ管理画面（グレーテーマ・隠し機能付き） -->
   <div id="view-master" class="view-section d-none">
     <div class="card p-4 view-card-master shadow-sm">
+      
       <!-- ★ タップで管理者メニューを呼び出す裏ワザタイトル -->
       <div class="text-center mb-4" onclick="handleSecretTap()" style="cursor: pointer; user-select: none;">
         <h3 class="fw-bold text-secondary mb-1">⚙️ マスタ管理（名簿設定）</h3>
@@ -242,7 +268,7 @@
           </div>
         </div>
         
-        <!-- ★ 隠し管理者エリア（初期はd-none） -->
+        <!-- ★ 隠し管理者エリア -->
         <div id="adminSection" class="col-12 mt-4 d-none">
           <div class="p-4 bg-white rounded-3 border border-danger shadow-sm">
             <h5 class="fw-bold text-danger mb-3">⚠️ システム連携設定 (管理者専用メニュー)</h5>
@@ -267,7 +293,7 @@
   let globalRecords = []; 
   let currentDisplayLimit = 20;
 
-  // ★ 管理者メニュー呼び出し用の裏ワザ変数
+  // 管理者メニュー呼び出し用の裏ワザ変数
   let tapCount = 0;
   let tapTimer = null;
 
@@ -281,7 +307,7 @@
     
     document.getElementById(`view-${viewName}`).classList.remove('d-none');
     
-    // 選択された画面に応じてタブのハイライトを切り替える（設定画面の時はどちらも非アクティブ）
+    // 選択された画面に応じてタブのハイライトを切り替える
     if (viewName === 'input') {
       document.getElementById('input-tab').classList.add('active');
     } else if (viewName === 'dashboard') {
@@ -326,15 +352,15 @@
   function handleSecretTap() {
     tapCount++;
     if (tapTimer) clearTimeout(tapTimer);
-    tapTimer = setTimeout(() => { tapCount = 0; }, 2000); // 2秒間タップがなければリセット
+    tapTimer = setTimeout(() => { tapCount = 0; }, 2000); 
     
     if (tapCount >= 5) {
       const adminSec = document.getElementById('adminSection');
       adminSec.classList.toggle('d-none');
       if (!adminSec.classList.contains('d-none')) {
-        adminSec.scrollIntoView({ behavior: 'smooth' }); // 表示されたらスクロールして見せる
+        adminSec.scrollIntoView({ behavior: 'smooth' }); 
       }
-      tapCount = 0; // 開閉したら回数をリセット
+      tapCount = 0; 
     }
   }
 
@@ -614,7 +640,8 @@
               <div><span class="fs-4 fw-bold text-dark">${r.user} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${r.type}</span></div>
               <span class="text-muted fw-bold fs-5">${r.date}</span>
             </div>
-            <p class="mb-2 fs-5 bg-light p-3 rounded text-dark" style="white-space: pre-wrap;">${r.note}</p>
+            <!-- ★ 記録の本文（ココは誤読防止のため標準ゴシック） -->
+            <p class="mb-2 fs-5 bg-light p-3 rounded text-dark record-text" style="white-space: pre-wrap;">${r.note}</p>
             <div class="d-flex justify-content-between align-items-end mt-2">
               <button class="btn btn-sm btn-outline-secondary fw-bold px-3 py-2" onclick="editRecord('${r.id}')">✏️ 修正する</button>
               <div class="text-end text-muted fw-bold">記録者: ${r.staff}</div>
