@@ -92,7 +92,7 @@
     .choices__placeholder { color: #6c757d; opacity: 1; }
     .choices__list--dropdown .choices__item--selectable { padding-right: 10px; font-size: 1.1rem; }
     
-    /* ★ 選択クリア用テキストボタンのスタイル */
+    /* 選択クリア用テキストボタンのスタイル */
     .btn-clear-select { cursor: pointer; user-select: none; transition: opacity 0.2s; }
     .btn-clear-select:hover { opacity: 0.7; }
   </style>
@@ -168,7 +168,7 @@
             </div>
 
             <div class="mb-3">
-              <!-- ★ 記録者名ヘッダー（位置を利用者名と完全に揃えました） -->
+              <!-- 記録者名ヘッダー（位置を利用者名と完全に揃えました） -->
               <div class="d-flex gap-2 align-items-center mb-1">
                 <label class="form-label mb-0">📛 記録者名</label>
                 <span id="staffClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('staff')">❌ 選択を消す</span>
@@ -238,7 +238,7 @@
             </div>
 
             <div class="col-md-6">
-              <!-- ★ 検索画面の利用者名ヘッダーも横並びに統一 -->
+              <!-- 検索画面の利用者名ヘッダーも横並びに統一 -->
               <div class="d-flex gap-2 align-items-center mb-2">
                 <label class="form-label text-secondary small mb-0">③ 利用者名（個人の絞り込み）</label>
                 <span class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
@@ -340,7 +340,6 @@
   let staffChoicesInstance = null;
   let searchUserChoicesInstance = null;
   
-  // ★【システム復旧】クラッシュの元となる removeItemButton は使わず、100%安全な初期値で固定
   const choicesConfig = {
     searchEnabled: true,
     itemSelectText: '',
@@ -548,7 +547,7 @@
     }
   }
 
-  // ★【新機能】キーボードの Delete や Backspace キーでのクリアを100%安全に再現する処理
+  // キーボードの Delete や Backspace キーでのクリアを安全に再現する処理
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Backspace' || e.key === 'Delete') {
       const activeEl = document.activeElement;
@@ -699,7 +698,7 @@
       if (checkedStatuses.length > 0) {
         const userObj = globalUserData.find(u => u.name === r.user);
         const currentStatus = userObj ? userObj.status : "";
-        if (!checkedStatuses.includes(currentStatus)) return false; // ★【バグ修正】
+        if (!checkedStatuses.includes(currentStatus)) return false; 
       }
       if (checkedTypes.length > 0 && !checkedTypes.includes(r.type)) return false;
       return true;
@@ -861,7 +860,15 @@
         }
       }
       if (finalTranscript !== '') {
+        // ① 余計な半角・全角スペースを削除
         finalTranscript = finalTranscript.replace(/[  ]+/g, '');
+        
+        // ★【新機能】「点/てん」を「、」、「丸/まる」を「。」、「改行/かいぎょう」を本物の改行に一発置換
+        finalTranscript = finalTranscript
+          .replace(/点|てん/g, '、')
+          .replace(/丸|まる/g, '。')
+          .replace(/改行|かいぎょう/g, '\n');
+
         noteArea.value += finalTranscript + "\n"; 
       }
     };
