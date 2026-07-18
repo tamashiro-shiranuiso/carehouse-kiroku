@@ -77,7 +77,7 @@
     /* Choices.js の見た目をベージュテーマに合わせて調整 */
     .choices__inner {
       border-radius: 0.5rem; background-color: #fffdf9; border: 1px solid #ced4da;
-      font-size: 1.1rem; padding: 0.5rem 2rem 0.5rem 1rem; min-height: 50px;
+      font-size: 1.1rem; padding: 0.5rem 2.5rem 0.5rem 1rem; min-height: 50px;
     }
     .choices.is-focused .choices__inner { background-color: #ffffff; }
     .choices[data-type*="select-one"]::after {
@@ -92,11 +92,15 @@
     .choices__placeholder { color: #6c757d; opacity: 1; }
     .choices__list--dropdown .choices__item--selectable { padding-right: 10px; font-size: 1.1rem; }
     
-    /* ★ Choices.js の削除ボタン（✖ボタン）の調整 */
+    /* Choices.js の削除ボタン（✖ボタン）のスタイル調整 */
     .choices[data-type*="select-one"] .choices__button {
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236c757d'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
-      right: 35px; top: 50%; margin-top: -10px; height: 20px; width: 20px; margin-right: 0;
+      right: 35px; top: 50%; margin-top: -10px; height: 20px; width: 20px; margin-right: 0; background-size: contain;
     }
+    
+    /* 選択クリア用テキストボタンのスタイル */
+    .btn-clear-select { cursor: pointer; user-select: none; transition: opacity 0.2s; }
+    .btn-clear-select:hover { opacity: 0.7; }
   </style>
 </head>
 <body>
@@ -143,10 +147,13 @@
             
             <div class="mb-3">
               <div class="d-flex justify-content-between align-items-end mb-1">
-                <label class="form-label mb-0">👤 利用者名</label>
+                <div class="d-flex gap-2 align-items-center">
+                  <label class="form-label mb-0">👤 利用者名</label>
+                  <span id="userClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('user')">❌ 選択を消す</span>
+                </div>
                 <div class="form-check form-switch" id="multiSwitchContainer">
                   <input class="form-check-input" type="checkbox" id="multiUserSwitch" onchange="toggleMultiUser()">
-                  <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人に入力する</label>
+                  <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人入力</label>
                 </div>
               </div>
               
@@ -166,7 +173,10 @@
             </div>
 
             <div class="mb-3">
-              <label class="form-label">📛 記録者名</label>
+              <div class="d-flex justify-content-between align-items-end mb-1">
+                <label class="form-label mb-0">📛 記録者名</label>
+                <span class="text-danger small fw-bold btn-clear-select" onclick="clearSelect('staff')">❌ 選択を消す</span>
+              </div>
               <select id="staff" class="form-select form-select-lg" required>
                 <option value="">読み込み中...</option>
               </select>
@@ -232,7 +242,10 @@
             </div>
 
             <div class="col-md-6">
-              <label class="form-label text-secondary small mb-2">③ 利用者名（個人の絞り込み）</label>
+              <div class="d-flex justify-content-between align-items-end mb-2">
+                <label class="form-label text-secondary small mb-0">③ 利用者名（個人の絞り込み）</label>
+                <span class="text-danger small fw-bold btn-clear-select" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
+              </div>
               <select id="searchUser" class="form-select form-select-lg"><option value="">全員（絞り込みなし）</option></select>
             </div>
             
@@ -330,7 +343,7 @@
   let staffChoicesInstance = null;
   let searchUserChoicesInstance = null;
   
-  // ★ Choices.js の設定（removeItemButton: true を指定して ✖ボタンとDel/BSキーでの消去を有効化）
+  // ★【重要】removeItemButton: true を有効化し、Delete/Backspaceキーおよび✖ボタンでの一発消去を可能に
   const choicesConfig = {
     searchEnabled: true,
     itemSelectText: '',
@@ -415,6 +428,9 @@
       globalUserData = data.users;
       globalStaffData = data.staffs; 
       
+      if (userChoicesInstance) { userChoicesInstance.destroy(); userChoicesInstance = null; }
+      if (staffChoicesInstance) { staffChoicesInstance.destroy(); staffChoicesInstance = null; }
+
       const userSelect = document.getElementById('user');
       const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
       userSelect.innerHTML = '<option value="">選択してください</option>';
@@ -434,7 +450,6 @@
         }
       });
 
-      if (userChoicesInstance) userChoicesInstance.destroy();
       userChoicesInstance = new Choices(userSelect, choicesConfig);
 
       filterSearchUserOptions();
@@ -445,7 +460,6 @@
         if (s.status === "在籍") staffSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
       });
 
-      if (staffChoicesInstance) staffChoicesInstance.destroy();
       staffChoicesInstance = new Choices(staffSelect, choicesConfig);
       
       const savedStaff = localStorage.getItem('lastSavedStaff');
@@ -504,7 +518,6 @@
         const btn = document.createElement('button'); btn.type = "button"; btn.className = `btn ${btnColor} w-100 type-btn`;
         btn.innerText = t.name; btn.dataset.typeValue = t.name; btn.dataset.category = t.category; btn.dataset.baseColor = btnColor;
 
-        // ★ 種別選択ボタンをON/OFFのトグルスイッチ方式に改良（同じボタンを再度押すとキャンセルされる）
         btn.addEventListener('click', function() {
           const isSelected = this.classList.contains(btnColor.replace('outline-', ''));
           
@@ -530,17 +543,29 @@
     }
   }
 
+  window.clearSelect = function(id) {
+    if (id === 'user' && userChoicesInstance) userChoicesInstance.setChoiceByValue("");
+    if (id === 'staff' && staffChoicesInstance) staffChoicesInstance.setChoiceByValue("");
+    if (id === 'searchUser' && searchUserChoicesInstance) {
+      searchUserChoicesInstance.setChoiceByValue("");
+      doSearch(); 
+    }
+  }
+
   window.toggleMultiUser = function() {
     const isMulti = document.getElementById('multiUserSwitch').checked;
     const singleContainer = document.getElementById('singleUserContainer');
     const multiContainer = document.getElementById('multiUserContainer');
+    const userClearBtn = document.getElementById('userClearBtn');
     
     if (isMulti) {
       singleContainer.classList.add('d-none');
       multiContainer.classList.remove('d-none');
+      if (userClearBtn) userClearBtn.classList.add('d-none');
     } else {
       singleContainer.classList.remove('d-none');
       multiContainer.classList.add('d-none');
+      if (userClearBtn) userClearBtn.classList.remove('d-none');
     }
   }
   
@@ -582,6 +607,8 @@
   }
 
   function filterSearchUserOptions() {
+    if (searchUserChoicesInstance) { searchUserChoicesInstance.destroy(); searchUserChoicesInstance = null; }
+
     const searchUserSelect = document.getElementById('searchUser');
     searchUserSelect.innerHTML = '<option value="">全員（絞り込みなし）</option>';
     
@@ -592,7 +619,6 @@
       }
     });
 
-    if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
     searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
   }
 
@@ -659,7 +685,7 @@
       if (checkedStatuses.length > 0) {
         const userObj = globalUserData.find(u => u.name === r.user);
         const currentStatus = userObj ? userObj.status : "";
-        if (!checkedStatuses.includes(checkedStatuses)) return false;
+        if (!checkedStatuses.includes(currentStatus)) return false; 
       }
       if (checkedTypes.length > 0 && !checkedTypes.includes(r.type)) return false;
       return true;
@@ -716,12 +742,8 @@
     const multiSwitch = document.getElementById('multiUserSwitch');
     if (multiSwitch.checked) multiSwitch.click();
     
-    if (userChoicesInstance) {
-      userChoicesInstance.setChoiceByValue(rec.user);
-    }
-    if (staffChoicesInstance) {
-      staffChoicesInstance.setChoiceByValue(rec.staff);
-    }
+    if (userChoicesInstance) { userChoicesInstance.setChoiceByValue(rec.user); }
+    if (staffChoicesInstance) { staffChoicesInstance.setChoiceByValue(rec.staff); }
 
     document.getElementById('editRecordId').value = rec.id;
     
