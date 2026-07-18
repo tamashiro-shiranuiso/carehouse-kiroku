@@ -290,7 +290,6 @@
       <div class="text-center mb-4" onclick="handleSecretTap()" style="cursor: pointer; user-select: none;">
         <h3 class="fw-bold text-secondary mb-1">⚙️ マスタ管理（名簿設定）</h3>
       </div>
-      <!-- 省略せずに記載 -->
       <div class="row g-4">
         <div class="col-md-6">
           <div class="p-3 bg-light rounded-3 border h-100">
@@ -782,7 +781,7 @@
     recognition.onresult = (event) => {
       lastFinalTranscript = ''; lastInterimTranscript = '';
       for (let i = 0; i < event.results.length; i++) {
-        let transcript = event.results[i][0].transcript.replace(/[ 　]+/g, '').replace(/[０-９Ａ-Ｚａ-ｚ]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+        let transcript = event.results[i][0].transcript.replace(/[  ]+/g, '').replace(/[０-９Ａ-Ｚａ-ｚ]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
         transcript = transcript.replace(/百([二三四五]十)/g, (m, p1) => p1 === '二十' ? '12' : p1 === '三十' ? '13' : p1 === '四十' ? '14' : '15').replace(/百十/g, '11').replace(/百/g, '10').replace(/([二三四五六七八九])十/g, '$1').replace(/十/g, '1');
         const kanjiRef = {'〇':'0','一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9'};
         transcript = transcript.replace(/[〇一二三四五六七八九]/g, s => kanjiRef[s]);
@@ -790,8 +789,7 @@
         transcript = transcript.replace(/(?:サチュレーション|さちゅれーしょん|サーチレーション|さーちれーしょん|酸素濃度|さんそのうど|えすぴーおーつー|エスピーオーツー|サチュ|さちゅ|サチ|さち|サーチ|さーち|酸素|さんそ|血中酸素|けっちゅうさんそ|パルス|ぱるす|オキシ|おきし|[sS][pP][oO]2|[sS][pP][oO]₂)([789][0-9]|100)%?/, 'SpO₂：$1% ');
         transcript = transcript.replace(/(?:血圧|けつあつ)?(?:上|うえ)?([5-9][0-9]|1[0-9][0-9])(?:の|の下が|下|した|\/)([4-9][0-9])(?:の下が|下|した)?/, '血圧：$1/$2 ');
         transcript = transcript.replace(/(?:脈拍|みゃくはく|脈|みゃく)([4-9][0-9]|1[0-5][0-9])(?:回|かい)?/, '脈拍：$1回/分 ');
-        transcript = transcript.replace(/点|てん/g, '、').replace(/丸|まる/g, '。').replace(/改行|かいぎょう|開業/g, '
-');
+        transcript = transcript.replace(/点|てん/g, '、').replace(/丸|まる/g, '。').replace(/改行|かいぎょう|開業/g, '\n');
         
         if (event.results[i].isFinal) { lastFinalTranscript += transcript; } else { lastInterimTranscript += transcript; }
       }
