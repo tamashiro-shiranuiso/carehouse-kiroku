@@ -86,6 +86,8 @@
       background: rgba(255,255,255,0.9); backdrop-filter: blur(5px);
       border-bottom: 2px solid #198754; padding: 8px; font-weight: bold; display: none;
     }
+
+    details summary::-webkit-details-marker { display:none; }
   </style>
 </head>
 <body>
@@ -102,15 +104,19 @@
     <li class="nav-item"><button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">👀 記録の確認・検索</button></li>
   </ul>
 
-  <!-- 初期設定画面 -->
+  <!-- ★ 初期設定画面（施設管理キー入力欄を追加） -->
   <div id="view-setup" class="view-section d-none">
     <div class="card p-5 shadow mx-auto" style="max-width: 650px; margin-top: 10vh; border-top: 8px solid #0d6efd;">
-      <h2 class="text-center mb-3 fw-bold text-dark">🔗 システム初期設定</h2>
+      <h2 class="text-center mb-4 fw-bold text-dark">🔗 システム初期設定</h2>
       <div class="mb-4">
         <label class="form-label fw-bold text-secondary">WebアプリURL (GAS)</label>
         <input type="text" id="setupGasUrl" class="form-control form-control-lg bg-light" placeholder="https://script.google.com/macros/s/...">
       </div>
-      <button class="btn btn-primary btn-lg w-100 fw-bold p-3 shadow-sm" onclick="saveGasUrl()">システムに連携して開始する</button>
+      <div class="mb-5">
+        <label class="form-label fw-bold text-secondary">🔑 施設管理キー (初回のみ設定)</label>
+        <input type="password" id="setupAuthKey" class="form-control form-control-lg bg-light" placeholder="施設固有の管理キーを入力">
+      </div>
+      <button class="btn btn-primary btn-lg w-100 fw-bold p-3 shadow-sm" onclick="saveSystemSettings()">システムに連携して開始する</button>
     </div>
   </div>
 
@@ -240,7 +246,7 @@
               </div>
             </div>
             
-            <!-- ② 利用者（状態スイッチを統合） -->
+            <!-- ② 利用者 -->
             <div class="col-12">
               <div class="d-flex flex-wrap justify-content-between align-items-end mb-2">
                 <div class="d-flex gap-2 align-items-center mb-1">
@@ -248,7 +254,6 @@
                   <span class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
                 </div>
                 
-                <!-- ★ 独立した2つの状態スイッチを右端に配置 -->
                 <div class="d-flex flex-wrap gap-3 mb-1">
                   <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="search-status-hospital" onchange="filterSearchUserOptions(); applyFilter();">
@@ -322,9 +327,16 @@
         <div id="adminSection" class="col-12 mt-4 d-none">
           <div class="p-4 bg-white rounded-3 border border-danger shadow-sm">
             <h5 class="fw-bold text-danger mb-3">⚠️ システム連携設定 (管理者専用メニュー)</h5>
-            <div class="input-group">
+            <div class="mb-3">
+              <label class="form-label small text-muted mb-1">現在の連携URL</label>
               <input type="text" id="currentGasUrl" class="form-control bg-light text-muted" readonly>
-              <button class="btn btn-outline-danger fw-bold" type="button" onclick="clearGasUrl()">連携解除 (リセット)</button>
+            </div>
+            <div class="mb-3">
+              <label class="form-label small text-muted mb-1">現在の管理キー</label>
+              <input type="text" id="currentAuthKey" class="form-control bg-light text-muted" readonly>
+            </div>
+            <div class="text-end">
+              <button class="btn btn-outline-danger fw-bold" type="button" onclick="clearSystemSettings()">連携解除 (リセット)</button>
             </div>
           </div>
         </div>
@@ -336,6 +348,8 @@
 
 <script>
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
+  let AUTH_KEY = localStorage.getItem('savedAuthKey') || ""; // ★ 変数名をauthKeyベースに変更
+  
   let globalUserData = [];
   let globalStaffData = []; 
   let globalTypesData = []; 
@@ -383,38 +397,67 @@
   }
 
   window.onload = function() {
-    if (!GAS_URL) { 
+    if (!GAS_URL || !AUTH_KEY) { 
       switchView('setup'); 
     } else {
       document.getElementById('appHeader').classList.remove('d-none');
       document.getElementById('mainTab').classList.remove('d-none');
       document.getElementById('currentGasUrl').value = GAS_URL;
+      document.getElementById('currentAuthKey').value = AUTH_KEY;
       switchView('input');
       loadAllMasterData();
     }
   };
 
-  function saveGasUrl() {
+  // ★ 連携処理の書き換え：まずGASへPOST通信し、暗号化シートを構築＆検証する
+  async function saveSystemSettings() {
     const url = document.getElementById('setupGasUrl').value.trim();
+    const key = document.getElementById('setupAuthKey').value.trim();
+    
     if (!url.startsWith("https://script.google.com/macros/s/")) {
-      alert("正しいWebアプリURLを入力してください。\n（https://script.google.com/macros/s/ から始まるURLです）"); return;
+      alert("正しいWebアプリURLを入力してください。"); return;
+    }
+    if (!key) {
+      alert("施設管理キーを入力してください。"); return;
     }
     
-    localStorage.setItem('savedGasUrl', url);
-    GAS_URL = url;
-    document.getElementById('currentGasUrl').value = url;
-    
-    document.getElementById('appHeader').classList.remove('d-none');
-    document.getElementById('mainTab').classList.remove('d-none');
-    
-    switchView('input');
-    loadAllMasterData();
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: "setupSystem", authKey: key }),
+        redirect: "follow"
+      });
+      const result = await response.json();
+      
+      if (result.status === "success") {
+        localStorage.setItem('savedGasUrl', url);
+        localStorage.setItem('savedAuthKey', key);
+        GAS_URL = url;
+        AUTH_KEY = key;
+        
+        document.getElementById('currentGasUrl').value = url;
+        document.getElementById('currentAuthKey').value = key;
+        
+        document.getElementById('appHeader').classList.remove('d-none');
+        document.getElementById('mainTab').classList.remove('d-none');
+        
+        switchView('input');
+        loadAllMasterData();
+      } else {
+        alert("初期連携に失敗しました:\n" + result.message);
+      }
+    } catch(e) {
+      alert("通信エラーが発生しました。URLが正しいか、またはGASが正しく最新版に更新（デプロイ）されているか確認してください。");
+    }
   }
 
-  function clearGasUrl() {
-    if (confirm("本当に連携を解除しますか？\n再度利用するにはURLの再入力が必要になります。")) { 
+  function clearSystemSettings() {
+    if (confirm("本当に連携を解除しますか？\n再度利用するにはURLと施設管理キーの再入力が必要になります。")) { 
       localStorage.removeItem('savedGasUrl'); 
+      localStorage.removeItem('savedAuthKey');
       GAS_URL = ""; 
+      AUTH_KEY = "";
       location.reload(); 
     }
   }
@@ -430,8 +473,14 @@
 
   async function loadAllMasterData() {
     try {
-      const response = await fetch(GAS_URL, { redirect: "follow" });
+      // ★ GETリクエストのパラメータとしてauthKeyを送信
+      const fetchUrl = `${GAS_URL}?authKey=${encodeURIComponent(AUTH_KEY)}`;
+      const response = await fetch(fetchUrl, { redirect: "follow" });
       const data = await response.json();
+      
+      if (data.status === "error") {
+        throw new Error(data.message);
+      }
       
       if (!data || !data.users || !data.types) {
         throw new Error("受信したデータの形式が不正です");
@@ -461,7 +510,7 @@
 
     } catch (error) {
       console.error(error);
-      alert("データの読み込みに失敗しました。\n・連携URLが間違っている\n・GAS側で「新しいデプロイ」を行っていない\nなどの可能性があります。設定から連携を解除してやり直してください。");
+      alert(`データの読み込みに失敗しました。\n\n【原因】\n${error.message}\n\n連携URLまたは管理キーが間違っている可能性があります。`);
     }
   }
 
@@ -543,14 +592,14 @@
       const response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, name: name, newStatus: newStatus }),
+        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, name: name, newStatus: newStatus, authKey: AUTH_KEY }),
         redirect: "follow"
       });
       const result = await response.json();
       if (result.status === "success") {
         await loadAllMasterData();
       } else {
-        alert("更新に失敗しました。");
+        alert("更新に失敗しました: " + result.message);
       }
     } catch (e) {
       alert("通信エラーが発生しました。");
@@ -753,7 +802,6 @@
     const includeHospital = document.getElementById('search-status-hospital').checked;
     const includeOut = document.getElementById('search-status-out').checked;
     
-    // ★ 検索対象とする利用者の状態を設定
     const allowedStatuses = ["利用中"];
     if (includeHospital) allowedStatuses.push("入院中");
     if (includeOut) allowedStatuses.push("退去");
@@ -768,7 +816,6 @@
       if (endDate && rDateStr > endDate) return false;
       if (selectedUser && r.user !== selectedUser) return false;
       
-      // 対象のステータスかどうか判定
       const userObj = globalUserData.find(u => u.name === r.user);
       const uStatus = userObj ? userObj.status : "";
       if (!allowedStatuses.includes(uStatus)) return false; 
@@ -1044,7 +1091,8 @@
     submitBtn.disabled = true;
     submitBtn.innerText = "⏳ 保存中...";
 
-    const payload = { action: isEditMode ? "updateRecord" : "saveRecord", date: date, users: usersToSave, staff: staff, type: type, note: note };
+    // ★ すべてのPOSTペイロードに authKey を追加
+    const payload = { action: isEditMode ? "updateRecord" : "saveRecord", date: date, users: usersToSave, staff: staff, type: type, note: note, authKey: AUTH_KEY };
     if (isEditMode) payload.id = editId;
 
     try {
@@ -1097,7 +1145,6 @@
     if (id === 'searchUser' && searchUserChoicesInstance) { searchUserChoicesInstance.setChoiceByValue(""); doSearch(); }
   }
   
-  // ★ 検索の利用者リストも独立したスイッチに合わせて再生成する
   function filterSearchUserOptions() {
     if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
     const searchUserSelect = document.getElementById('searchUser');
@@ -1129,16 +1176,16 @@
     if (!name) { alert("氏名を入力してください。"); return; }
     if (!confirm(`${masterType}に「${name}」を追加しますか？`)) return;
     try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name }), redirect: "follow" });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name, authKey: AUTH_KEY }), redirect: "follow" });
       const result = await response.json();
       if (result.status === "success") { alert("追加しました！"); nameInput.value = ""; await loadAllMasterData(); }
-      else { alert("追加に失敗しました。"); }
+      else { alert("追加に失敗しました: " + result.message); }
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
   }
 
   async function fetchInitialRecords() {
     try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords" }), redirect: "follow" });
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords", authKey: AUTH_KEY }), redirect: "follow" });
       const result = await response.json();
       if (result.status === "success") {
         globalRecords = result.records;
