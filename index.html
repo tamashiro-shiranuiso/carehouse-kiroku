@@ -460,7 +460,6 @@
     }
   }
 
-  // ★ 欠落していた関数を復元：マスタリストの描画
   function renderMasterLists() {
     const userList = document.getElementById('masterUserList');
     const staffList = document.getElementById('masterStaffList');
@@ -487,7 +486,6 @@
     });
   }
 
-  // ★ 欠落していた関数を復元：マスタのステータス更新
   async function toggleMasterStatus(masterType, name, currentStatus) {
     let newStatus = "";
     if (masterType === "利用者マスタ") {
@@ -518,7 +516,6 @@
     }
   }
 
-  // ★ 欠落していた関数を復元：複数人入力の切り替え
   function toggleMultiUser() {
     const isMulti = document.getElementById('multiUserSwitch').checked;
     if (isMulti) {
@@ -534,12 +531,10 @@
     }
   }
 
-  // ★ 欠落していた関数を復元：利用者の全選択/解除
   function selectAllUsers(checked) {
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
   }
 
-  // ★ 欠落していた関数を復元：もっと過去の記録を見る
   function loadMoreRecords() {
     currentDisplayLimit += 20;
     doSearch();
@@ -552,8 +547,10 @@
     
     accordionContainer.innerHTML = ""; quickContainer.innerHTML = ""; searchTypeContainer.innerHTML = "";
     
+    // ★ ここで固定のキーワードを指定しています
     const quickKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
-    let currentCategory = ""; let currentBody = null;
+    let currentCategory = ""; 
+    let currentBody = null;
     
     typesData.forEach((t, index) => {
       let baseColor = "btn-outline-secondary"; let colorClass = "bg-secondary text-white";
@@ -606,11 +603,13 @@
         currentBody.className = "p-3 mb-2 border rounded-3 category-body d-none row g-2 bg-white";
         accordionContainer.appendChild(currentBody);
 
+        // ★ 展開されない不具合を修正した箇所です
         header.addEventListener('click', function() {
-          const isHidden = currentBody.classList.contains('d-none');
+          const body = this.nextElementSibling;
+          const isHidden = body.classList.contains('d-none');
           document.querySelectorAll('.category-body').forEach(b => b.classList.add('d-none'));
           document.querySelectorAll('.category-arrow').forEach(a => a.innerText = "🔽");
-          if (isHidden) { currentBody.classList.remove('d-none'); this.querySelector('.category-arrow').innerText = "🔼"; }
+          if (isHidden) { body.classList.remove('d-none'); this.querySelector('.category-arrow').innerText = "🔼"; }
         });
       }
 
