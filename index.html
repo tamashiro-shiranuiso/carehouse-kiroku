@@ -144,9 +144,17 @@
                   <label class="form-label mb-0">👤 利用者名</label>
                   <span id="userClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('user')">❌ 選択を消す</span>
                 </div>
-                <div class="form-check form-switch" id="multiSwitchContainer">
-                  <input class="form-check-input" type="checkbox" id="multiUserSwitch" onchange="toggleMultiUser()">
-                  <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人入力</label>
+                
+                <!-- ★ 退去者表示と複数人入力のスイッチを並べて配置 -->
+                <div class="d-flex gap-3">
+                  <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="showDischargedSwitch" onchange="renderUserList()">
+                    <label class="form-check-label text-secondary small fw-bold" for="showDischargedSwitch">👻 退去者を表示</label>
+                  </div>
+                  <div class="form-check form-switch" id="multiSwitchContainer">
+                    <input class="form-check-input" type="checkbox" id="multiUserSwitch" onchange="toggleMultiUser()">
+                    <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人入力</label>
+                  </div>
                 </div>
               </div>
               <div id="singleUserContainer">
@@ -325,7 +333,7 @@
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
   let globalUserData = [];
   let globalStaffData = []; 
-  let globalTypesData = []; // ★ 種別データを保持するための変数を追加
+  let globalTypesData = []; 
   let globalRecords = []; 
   let currentDisplayLimit = 20;
   
@@ -426,24 +434,12 @@
       
       globalUserData = data.users; 
       globalStaffData = data.staffs; 
-      globalTypesData = data.types; // ★ 種別データをグローバルに保持
+      globalTypesData = data.types; 
       
-      if (userChoicesInstance) userChoicesInstance.destroy();
+      // ★ 新設した利用者リスト描画関数を呼び出し
+      renderUserList();
+
       if (staffChoicesInstance) staffChoicesInstance.destroy();
-
-      const userSelect = document.getElementById('user');
-      const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
-      userSelect.innerHTML = '<option value="">選択してください</option>'; multiUserCheckboxes.innerHTML = "";
-
-      data.users.forEach(u => {
-        if(u.status !== "退去") {
-          userSelect.innerHTML += `<option value="${u.name}">${u.name} ${u.status === "入院中" ? "（入院中）" : ""}</option>`;
-          multiUserCheckboxes.innerHTML += `<div class="col-6 col-md-4"><input type="checkbox" class="btn-check multi-user-check" id="multi-user-${u.name}" value="${u.name}"><label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${u.name}">${u.name}</label></div>`;
-        }
-      });
-      userChoicesInstance = new Choices(userSelect, choicesConfig);
-      filterSearchUserOptions();
-
       const staffSelect = document.getElementById('staff');
       staffSelect.innerHTML = '<option value="">選択してください</option>';
       data.staffs.forEach(s => {
@@ -454,14 +450,54 @@
       if(savedStaff) staffChoicesInstance.setChoiceByValue(savedStaff);
 
       renderMasterLists();
+      filterSearchUserOptions();
       
-      // ★ 種別のUIを構築する前に、過去の記録データを取得する（自動集計のため）
       await fetchInitialRecords();
       buildTypeUI(globalTypesData); 
 
     } catch (error) {
       console.error(error);
       alert("データの読み込みに失敗しました。\n・連携URLが間違っている\n・GAS側で「新しいデプロイ」を行っていない\nなどの可能性があります。設定から連携を解除してやり直してください。");
+    }
+  }
+
+  // ★ 退去者表示スイッチに連動して利用者リストを再描画する関数
+  function renderUserList() {
+    const showDischarged = document.getElementById('showDischargedSwitch').checked;
+    const userSelect = document.getElementById('user');
+    const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
+    
+    // 現在選択中の値を保持（再描画後も選択状態を復元するため）
+    let currentSingleVal = userSelect.value;
+    let currentMultiVals = Array.from(document.querySelectorAll('.multi-user-check:checked')).map(cb => cb.value);
+
+    if (userChoicesInstance) userChoicesInstance.destroy();
+    userSelect.innerHTML = '<option value="">選択してください</option>';
+    multiUserCheckboxes.innerHTML = "";
+
+    globalUserData.forEach(u => {
+      // 退去者を表示しない設定の時はスキップ
+      if (u.status === "退去" && !showDischarged) return;
+
+      let displaySuffix = "";
+      if (u.status === "入院中") displaySuffix = "（入院中）";
+      if (u.status === "退去") displaySuffix = "（退去）";
+
+      userSelect.innerHTML += `<option value="${u.name}">${u.name} ${displaySuffix}</option>`;
+      
+      let isChecked = currentMultiVals.includes(u.name) ? "checked" : "";
+      multiUserCheckboxes.innerHTML += `
+        <div class="col-6 col-md-4">
+          <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${u.name}" value="${u.name}" ${isChecked}>
+          <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${u.name}">${u.name}${displaySuffix}</label>
+        </div>`;
+    });
+
+    userChoicesInstance = new Choices(userSelect, choicesConfig);
+    
+    // 単一選択の場合、リスト再構築後に元の選択を復元
+    if (currentSingleVal) {
+       userChoicesInstance.setChoiceByValue(currentSingleVal);
     }
   }
 
@@ -545,7 +581,6 @@
     doSearch();
   }
 
-  // ★ 頻度による自動計算（パターンB）を組み込んだ新しい関数
   function buildTypeUI(typesData) {
     const accordionContainer = document.getElementById('typeAccordionContainer');
     const quickContainer = document.getElementById('quickTypeContainer');
@@ -553,7 +588,6 @@
     
     accordionContainer.innerHTML = ""; quickContainer.innerHTML = ""; searchTypeContainer.innerHTML = "";
     
-    // 1. 直近100件の記録から種別の使用回数を集計する
     let topTypes = [];
     const recentRecords = globalRecords.slice(0, 100);
     const typeCounts = {};
@@ -561,14 +595,11 @@
       typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
     });
     
-    // 回数が多い順に並び替え
     const sortedTypes = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
     
-    // データが少ない初期状態のための「基本の4つ」
     const defaultKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
     topTypes = [...sortedTypes];
     
-    // もし4つ未満なら、基本の4つから探して埋める
     for (let kw of defaultKeywords) {
       if (topTypes.length >= 4) break;
       const foundType = typesData.find(t => t.name.includes(kw));
@@ -576,10 +607,8 @@
         topTypes.push(foundType.name);
       }
     }
-    // きっちり上位4つに絞る
     topTypes = topTypes.slice(0, 4);
 
-    // クリック時の共通処理
     const handleTypeClick = function(btnElement, typeName, baseColor) {
       isFormDirty = true;
       const isSelected = btnElement.classList.contains(baseColor.replace('outline-', ''));
@@ -602,7 +631,6 @@
       }
     };
 
-    // 2. よく使う種別（上位4つ）を最前列に並べる
     topTypes.forEach(typeName => {
       const t = typesData.find(type => type.name === typeName);
       if(!t) return;
@@ -619,7 +647,6 @@
       col.appendChild(btn); quickContainer.appendChild(col);
     });
 
-    // 3. アコーディオン（その他の種別）と検索用チェックボックスを構築
     let currentCategory = ""; 
     let currentBody = null;
     
@@ -644,7 +671,7 @@
         accordionContainer.appendChild(currentBody);
 
         header.addEventListener('click', function() {
-          const body = this.nextElementSibling; // ★ 修正済みの展開ロジック
+          const body = this.nextElementSibling;
           const isHidden = body.classList.contains('d-none');
           document.querySelectorAll('.category-body').forEach(b => b.classList.add('d-none'));
           document.querySelectorAll('.category-arrow').forEach(a => a.innerText = "🔽");
@@ -795,6 +822,13 @@
     const rec = globalRecords.find(r => r.id === id);
     if(!rec) return;
 
+    // もし対象の記録が退去者のもので、現在退去者が非表示ならONにする
+    const uObj = globalUserData.find(u => u.name === rec.user);
+    if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
+      document.getElementById('showDischargedSwitch').checked = true;
+      renderUserList();
+    }
+
     if (document.getElementById('multiUserSwitch').checked) document.getElementById('multiUserSwitch').click();
     if (userChoicesInstance) userChoicesInstance.setChoiceByValue(rec.user);
     if (staffChoicesInstance) staffChoicesInstance.setChoiceByValue(rec.staff);
@@ -937,6 +971,13 @@
     if(!lastSavedRecordData) return;
     isFormDirty = true;
     
+    // 退去者のデータをコピーしようとした場合、スイッチをONにする
+    const uObj = globalUserData.find(u => u.name === lastSavedRecordData.user);
+    if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
+      document.getElementById('showDischargedSwitch').checked = true;
+      renderUserList();
+    }
+
     const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
     document.getElementById('date').value = d.toISOString().slice(0, 16);
     
@@ -1005,7 +1046,6 @@
         
         lastSavedRecordData = { user: usersToSave[0], staff: staff, type: type, note: note };
         
-        // ★ 記録が完了したら最新のデータを引っ張ってきて、よく使う種別ボタンを再計算して更新します
         await fetchInitialRecords();
         buildTypeUI(globalTypesData); 
 
