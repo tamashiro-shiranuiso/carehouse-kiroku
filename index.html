@@ -77,11 +77,11 @@
     /* Choices.js の見た目をベージュテーマに合わせて調整 */
     .choices__inner {
       border-radius: 0.5rem; background-color: #fffdf9; border: 1px solid #ced4da;
-      font-size: 1.1rem; padding: 0.5rem 1rem; min-height: 50px;
+      font-size: 1.1rem; padding: 0.5rem 2rem 0.5rem 1rem; min-height: 50px;
     }
     .choices.is-focused .choices__inner { background-color: #ffffff; }
     .choices[data-type*="select-one"]::after {
-      border-color: #6c757d transparent transparent transparent; border-width: 6px; margin-top: -3px;
+      border-color: #6c757d transparent transparent transparent; border-width: 6px; margin-top: -3px; right: 15px;
     }
     .choices[data-type*="select-one"].is-open::after {
       border-color: transparent transparent #6c757d transparent; margin-top: -9px;
@@ -91,6 +91,12 @@
     }
     .choices__placeholder { color: #6c757d; opacity: 1; }
     .choices__list--dropdown .choices__item--selectable { padding-right: 10px; font-size: 1.1rem; }
+    
+    /* ★ Choices.js の削除ボタン（✖ボタン）の調整 */
+    .choices[data-type*="select-one"] .choices__button {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%236c757d'%3E%3Cpath d='M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z'/%3E%3C/svg%3E");
+      right: 35px; top: 50%; margin-top: -10px; height: 20px; width: 20px; margin-right: 0;
+    }
   </style>
 </head>
 <body>
@@ -324,6 +330,7 @@
   let staffChoicesInstance = null;
   let searchUserChoicesInstance = null;
   
+  // ★ Choices.js の設定（removeItemButton: true を指定して ✖ボタンとDel/BSキーでの消去を有効化）
   const choicesConfig = {
     searchEnabled: true,
     itemSelectText: '',
@@ -331,7 +338,8 @@
     noChoicesText: '選択肢がありません',
     searchPlaceholderValue: '🔍 名前を入力して検索...',
     shouldSort: false, 
-    allowHTML: true
+    allowHTML: true,
+    removeItemButton: true
   };
 
   const now = new Date();
@@ -496,14 +504,21 @@
         const btn = document.createElement('button'); btn.type = "button"; btn.className = `btn ${btnColor} w-100 type-btn`;
         btn.innerText = t.name; btn.dataset.typeValue = t.name; btn.dataset.category = t.category; btn.dataset.baseColor = btnColor;
 
+        // ★ 種別選択ボタンをON/OFFのトグルスイッチ方式に改良（同じボタンを再度押すとキャンセルされる）
         btn.addEventListener('click', function() {
+          const isSelected = this.classList.contains(btnColor.replace('outline-', ''));
+          
           document.querySelectorAll('.type-btn').forEach(b => { b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; });
           document.querySelectorAll('.selected-badge').forEach(b => b.classList.add('d-none'));
-          const activeColor = btnColor.replace('outline-', '');
-          this.className = `btn ${activeColor} text-white w-100 type-btn`;
-          document.getElementById('selectedType').value = this.dataset.typeValue;
-          const parentHeader = Array.from(document.querySelectorAll('.category-header')).find(h => h.dataset.category === t.category);
-          if (parentHeader) { const badge = parentHeader.querySelector('.selected-badge'); badge.innerText = `選択中: ${t.name}`; badge.classList.remove('d-none'); }
+          document.getElementById('selectedType').value = "";
+
+          if (!isSelected) {
+            const activeColor = btnColor.replace('outline-', '');
+            this.className = `btn ${activeColor} text-white w-100 type-btn`;
+            document.getElementById('selectedType').value = this.dataset.typeValue;
+            const parentHeader = Array.from(document.querySelectorAll('.category-header')).find(h => h.dataset.category === t.category);
+            if (parentHeader) { const badge = parentHeader.querySelector('.selected-badge'); badge.innerText = `選択中: ${t.name}`; badge.classList.remove('d-none'); }
+          }
         });
         colDiv.appendChild(btn); currentBody.appendChild(colDiv);
       });
@@ -644,7 +659,7 @@
       if (checkedStatuses.length > 0) {
         const userObj = globalUserData.find(u => u.name === r.user);
         const currentStatus = userObj ? userObj.status : "";
-        if (!checkedStatuses.includes(currentStatus)) return false;
+        if (!checkedStatuses.includes(checkedStatuses)) return false;
       }
       if (checkedTypes.length > 0 && !checkedTypes.includes(r.type)) return false;
       return true;
@@ -702,10 +717,10 @@
     if (multiSwitch.checked) multiSwitch.click();
     
     if (userChoicesInstance) {
-      userChoicesInstance.setChoices([{ value: rec.user, label: rec.user, selected: true }], 'value', 'label', false);
+      userChoicesInstance.setChoiceByValue(rec.user);
     }
     if (staffChoicesInstance) {
-      staffChoicesInstance.setChoices([{ value: rec.staff, label: rec.staff, selected: true }], 'value', 'label', false);
+      staffChoicesInstance.setChoiceByValue(rec.staff);
     }
 
     document.getElementById('editRecordId').value = rec.id;
@@ -722,6 +737,8 @@
       if (b.dataset.typeValue === rec.type) {
          const activeColor = b.dataset.baseColor.replace('outline-', '');
          b.className = `btn ${activeColor} text-white w-100 type-btn`; 
+         const parentHeader = Array.from(document.querySelectorAll('.category-header')).find(h => h.dataset.category === b.dataset.category);
+         if (parentHeader) { const badge = parentHeader.querySelector('.selected-badge'); badge.innerText = `選択中: ${rec.type}`; badge.classList.remove('d-none'); }
       }
     });
     document.getElementById('selectedType').value = rec.type;
@@ -743,6 +760,7 @@
     if (staffChoicesInstance) staffChoicesInstance.setChoiceByValue(savedStaff ? savedStaff : "");
 
     document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
+    document.querySelectorAll('.selected-badge').forEach(b => b.classList.add('d-none'));
     document.getElementById('selectedType').value = "";
     
     const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -799,7 +817,6 @@
       }
     });
 
-    // ★ 音声入力の結果を受け取る処理（ここでスペースを自動削除します）
     recognition.onresult = (event) => {
       let finalTranscript = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -808,7 +825,6 @@
         }
       }
       if (finalTranscript !== '') {
-        // ★ 余計な半角・全角スペースをすべて削除（改行は残す）
         finalTranscript = finalTranscript.replace(/[  ]+/g, '');
         noteArea.value += finalTranscript + "\n"; 
       }
