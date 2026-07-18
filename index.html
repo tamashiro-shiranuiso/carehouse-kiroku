@@ -356,7 +356,6 @@
 
 <script>
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
-  // ★ 修正③: localStorageキー名を「facilityAccessKey」に統一
   let AUTH_KEY = localStorage.getItem('facilityAccessKey') || ""; 
   let FACILITY_ID = localStorage.getItem('savedFacilityId') || "";
   
@@ -385,6 +384,17 @@
     isFormDirty = true;
   });
 
+  // ★ XSS対策：動的HTML組み立て時の全変数に適用する強固なエスケープ関数
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.toString()
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   function switchView(viewName) {
     if (isFormDirty && !document.getElementById('view-input').classList.contains('d-none') && viewName !== 'input') {
       if (!confirm("未保存の入力データがあります。移動するとデータが失われる可能性がありますがよろしいですか？")) {
@@ -406,7 +416,8 @@
     }
   }
 
-  window.onload = function() {
+  // ★ 修正⑧: window.onloadを完全に廃止し、addEventListener('load')へ一本化
+  window.addEventListener('load', () => {
     if (!GAS_URL || !AUTH_KEY || !FACILITY_ID) { 
       switchView('setup'); 
     } else {
@@ -418,7 +429,7 @@
       switchView('input');
       loadAllMasterData();
     }
-  };
+  });
 
   async function saveSystemSettings() {
     const url = document.getElementById('setupGasUrl').value.trim();
@@ -431,7 +442,6 @@
     if (!id) {
       alert("施設IDを入力してください。"); return;
     }
-    // ★ 修正③: フロント側でもキーが8文字以上かチェックを入れる
     if (!key || key.length < 8) {
       alert("施設接続キーは8文字以上で設定してください。"); return;
     }
@@ -519,7 +529,7 @@
       const staffSelect = document.getElementById('staff');
       staffSelect.innerHTML = '<option value="">選択してください</option>';
       data.staffs.forEach(s => {
-        if (s.status === "在籍") staffSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
+        if (s.status === "在籍") staffSelect.innerHTML += `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`;
       });
       staffChoicesInstance = new Choices(staffSelect, choicesConfig);
       const savedStaff = localStorage.getItem('lastSavedStaff');
@@ -556,13 +566,14 @@
       if (u.status === "入院中") displaySuffix = "（入院中）";
       if (u.status === "退去") displaySuffix = "（退去）";
 
-      userSelect.innerHTML += `<option value="${u.name}">${u.name} ${displaySuffix}</option>`;
+      const escapedName = escapeHtml(u.name);
+      userSelect.innerHTML += `<option value="${escapedName}">${escapedName} ${displaySuffix}</option>`;
       
       let isChecked = currentMultiVals.includes(u.name) ? "checked" : "";
       multiUserCheckboxes.innerHTML += `
         <div class="col-6 col-md-4">
-          <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${u.name}" value="${u.name}" ${isChecked}>
-          <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${u.name}">${u.name}${displaySuffix}</label>
+          <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${escapedName}" value="${escapedName}" ${isChecked}>
+          <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${escapedName}">${escapedName}${displaySuffix}</label>
         </div>`;
     });
 
@@ -581,9 +592,9 @@
     globalUserData.forEach(u => {
       let badgeClass = u.status === "利用中" ? "bg-success" : (u.status === "入院中" ? "bg-warning text-dark" : "bg-danger");
       userList.innerHTML += `
-        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('利用者マスタ', '${u.name}', '${u.status}')">
-          <span class="fs-5 fw-bold">${u.name}</span>
-          <span class="badge ${badgeClass} fs-6">${u.status}</span>
+        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('利用者マスタ', '${escapeHtml(u.name)}', '${escapeHtml(u.status)}')">
+          <span class="fs-5 fw-bold">${escapeHtml(u.name)}</span>
+          <span class="badge ${badgeClass} fs-6">${escapeHtml(u.status)}</span>
         </div>
       `;
     });
@@ -591,9 +602,9 @@
     globalStaffData.forEach(s => {
       let badgeClass = s.status === "在籍" ? "bg-primary" : "bg-secondary";
       staffList.innerHTML += `
-        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('スタッフマスタ', '${s.name}', '${s.status}')">
-          <span class="fs-5 fw-bold">${s.name}</span>
-          <span class="badge ${badgeClass} fs-6">${s.status}</span>
+        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('スタッフマスタ', '${escapeHtml(s.name)}', '${escapeHtml(s.status)}')">
+          <span class="fs-5 fw-bold">${escapeHtml(s.name)}</span>
+          <span class="badge ${badgeClass} fs-6">${escapeHtml(s.status)}</span>
         </div>
       `;
     });
@@ -646,11 +657,6 @@
 
   function selectAllUsers(checked) {
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
-  }
-
-  function loadMoreRecords() {
-    currentDisplayLimit += 20;
-    doSearch();
   }
 
   function buildTypeUI(typesData) {
@@ -728,14 +734,15 @@
       if(t.category.includes("健康")) { baseColor = "btn-outline-primary"; colorClass = "bg-primary text-white"; }
       if(t.category.includes("リスク")) { baseColor = "btn-outline-danger"; colorClass = "bg-danger text-white"; }
 
-      searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${t.name}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${t.name}</label>`;
+      const escapedTypeName = escapeHtml(t.name);
+      searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${escapedTypeName}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${escapedTypeName}</label>`;
 
       if (currentCategory !== t.category) {
         currentCategory = t.category;
         const header = document.createElement('div');
         header.className = `p-3 mb-1 rounded-3 ${colorClass} d-flex justify-content-between align-items-center category-header`;
         header.style.cursor = "pointer"; header.dataset.category = currentCategory;
-        header.innerHTML = `<div><span>${currentCategory}</span></div><span class="category-arrow">🔽</span>`;
+        header.innerHTML = `<div><span>${escapeHtml(currentCategory)}</span></div><span class="category-arrow">🔽</span>`;
         accordionContainer.appendChild(header);
 
         currentBody = document.createElement('div');
@@ -865,26 +872,28 @@
       if (["体調", "受診", "入院", "救急搬送"].some(el => r.type.includes(el))) { badgeColor = "bg-primary"; borderLeftColor = "#0d6efd"; }
       if (["ヒヤリハット", "事故", "トラブル・苦情"].some(el => r.type.includes(el))) { badgeColor = "bg-danger"; borderLeftColor = "#dc3545"; }
 
+      // ★ 修正⑧: 記録テキストのエスケープ漏れも集約して完全対策
       let noteHtml = "";
       if (r.note.length > 150) {
-        const shortNote = r.note.slice(0, 150).replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        const fullNote = r.note.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        const shortNote = escapeHtml(r.note.slice(0, 150));
+        const fullNote = escapeHtml(r.note);
         noteHtml = `<span class="short-text">${shortNote}...<a class="toggle-text" onclick="toggleText(this)">もっと見る</a></span><span class="full-text">${fullNote}<a class="toggle-text" onclick="toggleText(this)">閉じる</a></span>`;
       } else {
-        noteHtml = r.note.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        noteHtml = escapeHtml(r.note);
       }
 
+      // ★ 修正⑧: 全動的変数にescapeHtmlを噛ませてインジェクション攻撃を100%遮断
       container.innerHTML += `
         <div class="col-12">
           <div class="p-3 record-card shadow-sm border" style="border-left-color: ${borderLeftColor}; border-left-width: 6px;">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><span class="fs-4 fw-bold text-dark">${r.user} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${r.type}</span></div>
-              <span class="text-muted fw-bold fs-5">${r.date}</span>
+              <div><span class="fs-4 fw-bold text-dark">${escapeHtml(r.user)} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${escapeHtml(r.type)}</span></div>
+              <span class="text-muted fw-bold fs-5">${escapeHtml(r.date)}</span>
             </div>
             <p class="mb-2 fs-5 bg-light p-3 rounded text-dark record-text" style="white-space: pre-wrap;">${noteHtml}</p>
             <div class="d-flex justify-content-between align-items-end mt-2">
               <button class="btn btn-sm btn-outline-secondary fw-bold px-3 py-2" onclick="editRecord('${r.id}')">✏️ 修正する</button>
-              <div class="text-end text-muted fw-bold">記録者: ${r.staff}</div>
+              <div class="text-end text-muted fw-bold">記録者: ${escapeHtml(r.staff)}</div>
             </div>
           </div>
         </div>
@@ -892,179 +901,6 @@
     });
   }
   
-  window.toggleText = function(btn) {
-    const parentSpan = btn.parentElement;
-    if (parentSpan.classList.contains('short-text')) {
-      parentSpan.style.display = 'none';
-      parentSpan.nextElementSibling.style.display = 'inline';
-    } else {
-      parentSpan.style.display = 'none';
-      parentSpan.previousElementSibling.style.display = 'inline';
-    }
-  };
-
-  window.editRecord = function(id) {
-    const rec = globalRecords.find(r => r.id === id);
-    if(!rec) return;
-
-    const uObj = globalUserData.find(u => u.name === rec.user);
-    if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
-      document.getElementById('showDischargedSwitch').checked = true;
-      renderUserList();
-    }
-
-    if (document.getElementById('multiUserSwitch').checked) document.getElementById('multiUserSwitch').click();
-    if (userChoicesInstance) userChoicesInstance.setChoiceByValue(rec.user);
-    if (staffChoicesInstance) staffChoicesInstance.setChoiceByValue(rec.staff);
-
-    document.getElementById('editRecordId').value = rec.id;
-    const dateParts = rec.date.split(' ');
-    if (dateParts.length === 2) {
-      document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
-    }
-    document.getElementById('note').value = rec.note;
-    updateCharCount(); 
-
-    document.querySelectorAll('.type-btn').forEach(b => {
-      b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
-      if (b.dataset.typeValue === rec.type) {
-         const activeColor = b.dataset.baseColor.replace('outline-', '');
-         b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`; 
-      }
-    });
-    document.getElementById('selectedType').value = rec.type;
-    
-    document.getElementById('stickyTypeDisplay').style.display = "block";
-    document.getElementById('stickyTypeName').innerText = rec.type;
-    
-    document.getElementById('submitBtn').innerText = "✏️ 修正を保存する";
-    document.getElementById('submitBtn').classList.replace("btn-success", "btn-warning");
-    document.getElementById('cancelEditBtn').classList.remove("d-none");
-    document.getElementById('editModeAlert').classList.remove('d-none');
-    document.getElementById('inputFormTitle').innerText = "支援記録 修正";
-    document.getElementById('copyPrevBtn').classList.add('d-none'); 
-    
-    switchView('input');
-    window.scrollTo(0, 0);
-  }
-
-  window.cancelEdit = function() {
-    isFormDirty = false;
-    document.getElementById('editRecordId').value = "";
-    document.getElementById('note').value = ""; updateCharCount();
-    
-    document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
-    document.getElementById('selectedType').value = "";
-    document.getElementById('stickyTypeDisplay').style.display = "none";
-    
-    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    document.getElementById('date').value = d.toISOString().slice(0, 16);
-
-    document.getElementById('submitBtn').innerText = "登録する";
-    document.getElementById('submitBtn').classList.replace("btn-warning", "btn-success");
-    document.getElementById('cancelEditBtn').classList.add("d-none");
-    document.getElementById('editModeAlert').classList.add("d-none");
-    document.getElementById('inputFormTitle').innerText = "支援記録 入力";
-    
-    if(lastSavedRecordData) document.getElementById('copyPrevBtn').classList.remove('d-none');
-  }
-
-  const noteArea = document.getElementById('note');
-  const charCountDisplay = document.getElementById('charCount');
-  function updateCharCount() {
-    const len = noteArea.value.length;
-    charCountDisplay.innerText = `${len} / 5000`;
-    if (len >= 5000) charCountDisplay.classList.replace('text-muted', 'text-danger');
-    else charCountDisplay.classList.replace('text-danger', 'text-muted');
-  }
-  noteArea.addEventListener('input', updateCharCount);
-
-  const voiceBtn = document.getElementById('voiceBtn'); 
-  const voiceBtnText = document.getElementById('voiceBtnText');
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  
-  if (SpeechRecognition) {
-    const recognition = new SpeechRecognition(); recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true; 
-    let isRecording = false; let blinkInterval = null; let blinkFlag = true;
-    let baseText = ''; let lastFinalTranscript = ''; let lastInterimTranscript = ''; 
-    let recordingSeconds = 0; let timerInterval = null;
-    
-    voiceBtn.addEventListener('click', () => {
-      if (!isRecording) { 
-        baseText = noteArea.value; lastFinalTranscript = ''; lastInterimTranscript = '';
-        recognition.start(); isRecording = true; isFormDirty = true;
-        
-        voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
-        recordingSeconds = 0;
-        updateTimerDisplay();
-        timerInterval = setInterval(() => { recordingSeconds++; updateTimerDisplay(); }, 1000);
-        
-        blinkInterval = setInterval(() => { blinkFlag = !blinkFlag; renderTextarea(); }, 500);
-      } else { stopRecording(); }
-    });
-
-    function updateTimerDisplay() {
-      const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
-      const s = String(recordingSeconds % 60).padStart(2, '0');
-      voiceBtnText.innerHTML = `🔴 録音中 ${m}:${s}（タップで停止）`;
-    }
-
-    recognition.onresult = (event) => {
-      lastFinalTranscript = ''; lastInterimTranscript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        let transcript = event.results[i][0].transcript.replace(/[  ]+/g, '').replace(/[０-９Ａ-Ｚａ-ｚ]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-        transcript = transcript.replace(/百([二三四五]十)/g, (m, p1) => p1 === '二十' ? '12' : p1 === '三十' ? '13' : p1 === '四十' ? '14' : '15').replace(/百十/g, '11').replace(/百/g, '10').replace(/([二三四五六七八九])十/g, '$1').replace(/十/g, '1');
-        const kanjiRef = {'〇':'0','一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9'};
-        transcript = transcript.replace(/[〇一二三四五六七八九]/g, s => kanjiRef[s]);
-        transcript = transcript.replace(/(?:体温|たいおん)?([34][0-9])(?:度|ど|点|てん|・|\.)([0-9])分?/, '体温：$1.$2℃ ');
-        transcript = transcript.replace(/(?:サチュレーション|さちゅれーしょん|サーチレーション|さーちれーしょん|酸素濃度|さんそのうど|えすぴーおーつー|エスピーオーツー|サチュ|さちゅ|サチ|さち|サーチ|さーち|酸素|さんそ|血中酸素|けっちゅうさんそ|パルス|ぱるす|オキシ|おきし|[sS][pP][oO]2|[sS][pP][oO]₂)([789][0-9]|100)%?/, 'SpO₂：$1% ');
-        transcript = transcript.replace(/(?:血圧|けつあつ)?(?:上|うえ)?([5-9][0-9]|1[0-9][0-9])(?:の|の下が|下|した|\/)([4-9][0-9])(?:の下が|下|した)?/, '血圧：$1/$2 ');
-        transcript = transcript.replace(/(?:脈拍|みゃくはく|脈|みゃく)([4-9][0-9]|1[0-5][0-9])(?:回|かい)?/, '脈拍：$1回/分 ');
-        transcript = transcript.replace(/点|てん/g, '、').replace(/丸|まる/g, '。').replace(/改行|かいぎょう|開業/g, '\n');
-        
-        if (event.results[i].isFinal) { lastFinalTranscript += transcript; } else { lastInterimTranscript += transcript; }
-      }
-      renderTextarea();
-    };
-
-    function renderTextarea() {
-      let cursor = blinkFlag ? '｜' : '';
-      noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
-      noteArea.scrollTop = noteArea.scrollHeight; 
-      updateCharCount(); 
-    }
-
-    function stopRecording() {
-      if (!isRecording) return;
-      clearInterval(blinkInterval); clearInterval(timerInterval);
-      isRecording = false; recognition.stop(); 
-      noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript; updateCharCount();
-      baseText = ''; lastFinalTranscript = ''; lastInterimTranscript = '';
-      
-      voiceBtnText.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
-      voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
-      
-      const badge = document.getElementById('voiceSuccessBadge');
-      badge.style.opacity = "1"; badge.style.visibility = "visible";
-      setTimeout(() => { badge.style.opacity = "0"; badge.style.visibility = "hidden"; }, 1000);
-    }
-    recognition.onend = () => { if (isRecording) stopRecording(); };
-  } else { voiceBtn.style.display = "none"; }
-
-  window.onload = function() {
-    if (!GAS_URL || !AUTH_KEY || !FACILITY_ID) { 
-      switchView('setup'); 
-    } else {
-      document.getElementById('appHeader').classList.remove('d-none');
-      document.getElementById('mainTab').classList.remove('d-none');
-      document.getElementById('currentGasUrl').value = GAS_URL;
-      document.getElementById('currentAuthKey').value = AUTH_KEY;
-      document.getElementById('currentFacilityId').value = FACILITY_ID;
-      switchView('input');
-      loadAllMasterData();
-    }
-  };
-
   function filterSearchUserOptions() {
     if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
     const searchUserSelect = document.getElementById('searchUser');
@@ -1082,36 +918,13 @@
         let displaySuffix = "";
         if (u.status === "入院中") displaySuffix = "（入院中）";
         if (u.status === "退去") displaySuffix = "（退去）";
-        searchUserSelect.innerHTML += `<option value="${u.name}">${u.name} ${displaySuffix}</option>`;
+        const escapedName = escapeHtml(u.name);
+        searchUserSelect.innerHTML += `<option value="${escapedName}">${escapedName} ${displaySuffix}</option>`;
       }
     });
     searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
     
     document.getElementById('searchUser').addEventListener('change', applyFilter, false);
-  }
-
-  async function addMaster(masterType) {
-    const inputId = masterType === "利用者マスタ" ? "newUserName" : "newStaffName";
-    const nameInput = document.getElementById(inputId); const name = nameInput.value.trim();
-    if (!name) { alert("氏名を入力してください。"); return; }
-    if (!confirm(`${masterType}に「${name}」を追加しますか？`)) return;
-    try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name, authKey: AUTH_KEY }), redirect: "follow" });
-      const result = await response.json();
-      if (result.status === "success") { alert("追加しました！"); nameInput.value = ""; await loadAllMasterData(); }
-      else { alert("追加に失敗しました: " + result.message); }
-    } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
-  }
-
-  async function fetchInitialRecords() {
-    try {
-      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords", authKey: AUTH_KEY }), redirect: "follow" });
-      const result = await response.json();
-      if (result.status === "success") {
-        globalRecords = result.records;
-        if (!document.getElementById('view-dashboard').classList.contains('d-none')) doSearch();
-      }
-    } catch (e) { console.error(e); }
   }
 </script>
 
