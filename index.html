@@ -62,7 +62,7 @@
     .record-card { background-color: #faf7f0; border-radius: 12px; }
     .master-list-item { background-color: #faf7f0; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; transition: opacity 0.2s; }
     .master-list-item:hover { opacity: 0.8; }
-    .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
+    .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; cursor: pointer; }
 
     .choices__inner {
       border-radius: 0.5rem; background-color: #fffdf9; border: 1px solid #ced4da;
@@ -86,6 +86,9 @@
       background: rgba(255,255,255,0.9); backdrop-filter: blur(5px);
       border-bottom: 2px solid #198754; padding: 8px; font-weight: bold; display: none;
     }
+
+    /* 詳細条件アコーディオン用 */
+    details summary::-webkit-details-marker { display:none; }
   </style>
 </head>
 <body>
@@ -145,7 +148,6 @@
                   <span id="userClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('user')">❌ 選択を消す</span>
                 </div>
                 
-                <!-- ★ 退去者表示と複数人入力のスイッチを並べて配置 -->
                 <div class="d-flex gap-3">
                   <div class="form-check form-switch">
                     <input class="form-check-input" type="checkbox" id="showDischargedSwitch" onchange="renderUserList()">
@@ -225,54 +227,63 @@
       
       <div class="mb-4">
         <button id="toggleSearchBtn" class="btn btn-outline-success w-100 fw-bold p-3 fs-5 bg-white shadow-sm" type="button" onclick="toggleSearchAccordion()">
-          🔍 検索・絞り込み条件を指定する（タップで開く）
+          🔍 検索・絞り込み条件（タップで開く）
         </button>
         
         <div id="searchConditionBody" class="mt-3 p-4 bg-light rounded-3 border d-none shadow-sm border-success">
           <div class="row g-4">
+            
+            <!-- ① 期間 -->
             <div class="col-12">
-              <label class="form-label text-secondary small mb-2">① 期間を指定する</label>
+              <label class="form-label text-secondary small mb-2">① 期間</label>
               <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
-                <input type="date" id="searchStartDate" class="form-control form-control-lg w-100">
+                <input type="date" id="searchStartDate" class="form-control form-control-lg w-100" onchange="applyFilter()">
                 <span class="text-muted fw-bold text-center d-none d-md-inline px-2">〜</span>
-                <input type="date" id="searchEndDate" class="form-control form-control-lg w-100">
+                <input type="date" id="searchEndDate" class="form-control form-control-lg w-100" onchange="applyFilter()">
               </div>
             </div>
             
-            <div class="col-md-6">
-              <label class="form-label text-secondary small d-block mb-2">② 利用者の状態</label>
-              <div class="d-flex flex-wrap gap-2">
-                <input type="checkbox" class="btn-check search-status-check" id="status-active" value="利用中" onchange="filterSearchUserOptions()">
-                <label class="btn btn-outline-success search-checkbox-label" for="status-active">利用中</label>
-                <input type="checkbox" class="btn-check search-status-check" id="status-hospital" value="入院中" onchange="filterSearchUserOptions()">
-                <label class="btn btn-outline-warning text-dark search-checkbox-label" for="status-hospital">入院中</label>
-                <input type="checkbox" class="btn-check search-status-check" id="status-out" value="退去" onchange="filterSearchUserOptions()">
-                <label class="btn btn-outline-danger search-checkbox-label" for="status-out">退去</label>
-              </div>
-            </div>
-
-            <div class="col-md-6">
+            <!-- ② 利用者 -->
+            <div class="col-12">
               <div class="d-flex gap-2 align-items-center mb-2">
-                <label class="form-label text-secondary small mb-0">③ 利用者名</label>
+                <label class="form-label text-secondary small mb-0">② 利用者</label>
                 <span class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
               </div>
               <select id="searchUser" class="form-select form-select-lg"><option value="">全員（絞り込みなし）</option></select>
             </div>
-            
+
+            <!-- ③ 種別 -->
             <div class="col-12">
-              <label class="form-label text-secondary small d-block mb-2">④ 記録の種別（複数選択可）</label>
-              <div id="searchTypeCheckboxContainer" class="d-flex flex-wrap gap-2 p-3 border rounded bg-white" style="max-height: 180px; overflow-y: auto;"></div>
+              <label class="form-label text-secondary small d-block mb-2">③ 種別（複数選択可）</label>
+              <div id="searchTypeCheckboxContainer" class="d-flex flex-wrap gap-2 p-3 border rounded bg-white shadow-sm" style="max-height: 180px; overflow-y: auto;"></div>
             </div>
+
+            <!-- 詳細条件 -->
+            <div class="col-12">
+              <details class="bg-white p-3 border rounded shadow-sm">
+                <summary class="fw-bold text-secondary" style="cursor: pointer; user-select: none;">▼ 詳細条件（利用者の状態）</summary>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                  <input type="checkbox" class="btn-check search-status-check" id="status-active" value="利用中" onchange="filterSearchUserOptions(); applyFilter();">
+                  <label class="btn btn-outline-success search-checkbox-label" for="status-active">利用中</label>
+                  
+                  <input type="checkbox" class="btn-check search-status-check" id="status-hospital" value="入院中" onchange="filterSearchUserOptions(); applyFilter();">
+                  <label class="btn btn-outline-warning text-dark search-checkbox-label" for="status-hospital">入院中</label>
+                  
+                  <input type="checkbox" class="btn-check search-status-check" id="status-out" value="退去" onchange="filterSearchUserOptions(); applyFilter();">
+                  <label class="btn btn-outline-danger search-checkbox-label" for="status-out">退去</label>
+                </div>
+              </details>
+            </div>
+            
           </div>
           
-          <div class="mt-4 d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary btn-lg fw-bold w-25" onclick="clearFilter()">リセット</button>
-            <button type="button" class="btn btn-success btn-lg fw-bold w-75 shadow-sm" onclick="applyFilter()">この条件で検索する</button>
+          <div class="mt-4 text-end">
+            <button type="button" class="btn btn-outline-secondary fw-bold px-4 py-2" onclick="clearFilter()">リセット</button>
           </div>
         </div>
       </div>
 
-      <h5 id="resultTitle" class="fw-bold text-secondary mb-3">📋 最新の記録</h5>
+      <h5 id="resultTitle" class="fw-bold text-secondary mb-3">📋 最新20件</h5>
       <div id="searchResultsContainer" class="row g-3"></div>
       
       <div id="loadMoreContainer" class="text-center mt-4 d-none">
@@ -436,7 +447,6 @@
       globalStaffData = data.staffs; 
       globalTypesData = data.types; 
       
-      // ★ 新設した利用者リスト描画関数を呼び出し
       renderUserList();
 
       if (staffChoicesInstance) staffChoicesInstance.destroy();
@@ -461,13 +471,11 @@
     }
   }
 
-  // ★ 退去者表示スイッチに連動して利用者リストを再描画する関数
   function renderUserList() {
     const showDischarged = document.getElementById('showDischargedSwitch').checked;
     const userSelect = document.getElementById('user');
     const multiUserCheckboxes = document.getElementById('multiUserCheckboxes');
     
-    // 現在選択中の値を保持（再描画後も選択状態を復元するため）
     let currentSingleVal = userSelect.value;
     let currentMultiVals = Array.from(document.querySelectorAll('.multi-user-check:checked')).map(cb => cb.value);
 
@@ -476,7 +484,6 @@
     multiUserCheckboxes.innerHTML = "";
 
     globalUserData.forEach(u => {
-      // 退去者を表示しない設定の時はスキップ
       if (u.status === "退去" && !showDischarged) return;
 
       let displaySuffix = "";
@@ -495,7 +502,6 @@
 
     userChoicesInstance = new Choices(userSelect, choicesConfig);
     
-    // 単一選択の場合、リスト再構築後に元の選択を復元
     if (currentSingleVal) {
        userChoicesInstance.setChoiceByValue(currentSingleVal);
     }
@@ -656,7 +662,8 @@
       if(t.category.includes("健康")) { baseColor = "btn-outline-primary"; colorClass = "bg-primary text-white"; }
       if(t.category.includes("リスク")) { baseColor = "btn-outline-danger"; colorClass = "bg-danger text-white"; }
 
-      searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${t.name}"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${t.name}</label>`;
+      // ★ 検索の種別変更時に自動フィルタリングを発動させる
+      searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${t.name}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${t.name}</label>`;
 
       if (currentCategory !== t.category) {
         currentCategory = t.category;
@@ -711,9 +718,9 @@
     }
   }
 
+  // ★ 検索ボタンを排除し、条件変更時に自動で検索処理を行う
   function applyFilter() {
     saveSearchConditions();
-    toggleSearchAccordion(); 
     currentDisplayLimit = 20;
     doSearch();
   }
@@ -734,7 +741,7 @@
       body.classList.remove('d-none'); btn.innerHTML = "🔼 検索・絞り込み条件を閉じる";
       btn.classList.replace('btn-outline-success', 'btn-success'); btn.classList.add('text-white');
     } else {
-      body.classList.add('d-none'); btn.innerHTML = "🔍 検索・絞り込み条件を指定する（タップで開く）";
+      body.classList.add('d-none'); btn.innerHTML = "🔍 検索・絞り込み条件（タップで開く）";
       btn.classList.replace('btn-success', 'btn-outline-success'); btn.classList.remove('text-white');
     }
   }
@@ -762,7 +769,8 @@
       return true;
     });
 
-    document.getElementById('resultTitle').innerHTML = isFilterActive ? `📋 検索結果 (${filtered.length}件)` : "📋 最新の記録";
+    // ★ タイトルを「最新20件」または「検索結果」に統一
+    document.getElementById('resultTitle').innerHTML = isFilterActive ? `📋 検索結果 (${filtered.length}件)` : "📋 最新20件";
     
     let displayRecords = isFilterActive ? filtered : filtered.slice(0, currentDisplayLimit);
     if (!isFilterActive && filtered.length > currentDisplayLimit) {
@@ -822,7 +830,6 @@
     const rec = globalRecords.find(r => r.id === id);
     if(!rec) return;
 
-    // もし対象の記録が退去者のもので、現在退去者が非表示ならONにする
     const uObj = globalUserData.find(u => u.name === rec.user);
     if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
       document.getElementById('showDischargedSwitch').checked = true;
@@ -971,7 +978,6 @@
     if(!lastSavedRecordData) return;
     isFormDirty = true;
     
-    // 退去者のデータをコピーしようとした場合、スイッチをONにする
     const uObj = globalUserData.find(u => u.name === lastSavedRecordData.user);
     if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
       document.getElementById('showDischargedSwitch').checked = true;
@@ -1095,6 +1101,9 @@
       }
     });
     searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
+    
+    // ★ Choices.jsのセレクトボックスの変更を検知して自動検索を発動
+    document.getElementById('searchUser').addEventListener('change', applyFilter, false);
   }
 
   async function addMaster(masterType) {
