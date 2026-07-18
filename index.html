@@ -384,7 +384,7 @@
     isFormDirty = true;
   });
 
-  // ★ XSS対策：動的HTML組み立て時の全変数に適用する強固なエスケープ関数
+  // 強固なXSSエスケープ関数
   function escapeHtml(str) {
     if (!str) return "";
     return str.toString()
@@ -416,7 +416,7 @@
     }
   }
 
-  // ★ 修正⑧: window.onloadを完全に廃止し、addEventListener('load')へ一本化
+  // ★ 修正⑧: window.onloadを完全に一本化
   window.addEventListener('load', () => {
     if (!GAS_URL || !AUTH_KEY || !FACILITY_ID) { 
       switchView('setup'); 
@@ -476,7 +476,7 @@
         alert("初期連携に失敗しました:\n" + result.message);
       }
     } catch(e) {
-      alert("通信エラーが発生しました。URLが正しいか、マスタシートがスプレッドシートに全て揃っているか確認してください。");
+      alert("通信エラーが発生しました。URLが正しいか確認してください。");
     }
   }
 
@@ -515,10 +515,6 @@
         throw new Error(data.message);
       }
       
-      if (!data || !data.users || !data.types) {
-        throw new Error("受信したデータの形式が不正です");
-      }
-      
       globalUserData = data.users; 
       globalStaffData = data.staffs; 
       globalTypesData = data.types; 
@@ -529,7 +525,9 @@
       const staffSelect = document.getElementById('staff');
       staffSelect.innerHTML = '<option value="">選択してください</option>';
       data.staffs.forEach(s => {
-        if (s.status === "在籍") staffSelect.innerHTML += `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`;
+        if (s.status === "在籍") {
+          staffSelect.innerHTML += `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name)}</option>`;
+        }
       });
       staffChoicesInstance = new Choices(staffSelect, choicesConfig);
       const savedStaff = localStorage.getItem('lastSavedStaff');
@@ -547,6 +545,7 @@
     }
   }
 
+  // 利用者選択欄のレンダリング (英数字ID対応)
   function renderUserList() {
     const showDischarged = document.getElementById('showDischargedSwitch').checked;
     const userSelect = document.getElementById('user');
@@ -557,8 +556,8 @@
 
     if (userChoicesInstance) userChoicesInstance.destroy();
     userSelect.innerHTML = '<option value="">選択してください</option>';
-    multiUserCheckboxes.innerHTML = "";
-
+    
+    let multiBuffer = [];
     globalUserData.forEach(u => {
       if (u.status === "退去" && !showDischarged) return;
 
@@ -566,51 +565,57 @@
       if (u.status === "入院中") displaySuffix = "（入院中）";
       if (u.status === "退去") displaySuffix = "（退去）";
 
+      const escapedId = escapeHtml(u.id);
       const escapedName = escapeHtml(u.name);
-      userSelect.innerHTML += `<option value="${escapedName}">${escapedName} ${displaySuffix}</option>`;
       
-      let isChecked = currentMultiVals.includes(u.name) ? "checked" : "";
-      multiUserCheckboxes.innerHTML += `
+      userSelect.innerHTML += `<option value="${escapedId}">${escapedName} ${displaySuffix}</option>`;
+      
+      let isChecked = currentMultiVals.includes(u.id) ? "checked" : "";
+      multiBuffer.push(`
         <div class="col-6 col-md-4">
-          <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${escapedName}" value="${escapedName}" ${isChecked}>
-          <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${escapedName}">${escapedName}${displaySuffix}</label>
-        </div>`;
+          <input type="checkbox" class="btn-check multi-user-check" id="multi-user-${escapedId}" value="${escapedId}" ${isChecked}>
+          <label class="btn btn-outline-secondary w-100 text-truncate" for="multi-user-${escapedId}">${escapedName}${displaySuffix}</label>
+        </div>`);
     });
+    multiUserCheckboxes.innerHTML = multiBuffer.join('');
 
     userChoicesInstance = new Choices(userSelect, choicesConfig);
-    
     if (currentSingleVal) {
        userChoicesInstance.setChoiceByValue(currentSingleVal);
     }
   }
 
+  // ★ 修正③: innerHTMLの一括描画(バッファ化)によるマスタ一覧表示の高速化
   function renderMasterLists() {
     const userList = document.getElementById('masterUserList');
     const staffList = document.getElementById('masterStaffList');
-    userList.innerHTML = ''; staffList.innerHTML = '';
-
+    
+    let userBuffer = [];
     globalUserData.forEach(u => {
       let badgeClass = u.status === "利用中" ? "bg-success" : (u.status === "入院中" ? "bg-warning text-dark" : "bg-danger");
-      userList.innerHTML += `
-        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('利用者マスタ', '${escapeHtml(u.name)}', '${escapeHtml(u.status)}')">
-          <span class="fs-5 fw-bold">${escapeHtml(u.name)}</span>
+      userBuffer.push(`
+        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('利用者マスタ', '${escapeHtml(u.id)}', '${escapeHtml(u.name)}', '${escapeHtml(u.status)}')">
+          <span class="fs-5 fw-bold">${escapeHtml(u.name)} <small class="text-muted text-monospace">(${escapeHtml(u.id)})</small></span>
           <span class="badge ${badgeClass} fs-6">${escapeHtml(u.status)}</span>
         </div>
-      `;
+      `);
     });
+    userList.innerHTML = userBuffer.join('');
 
+    let staffBuffer = [];
     globalStaffData.forEach(s => {
       let badgeClass = s.status === "在籍" ? "bg-primary" : "bg-secondary";
-      staffList.innerHTML += `
-        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('スタッフマスタ', '${escapeHtml(s.name)}', '${escapeHtml(s.status)}')">
-          <span class="fs-5 fw-bold">${escapeHtml(s.name)}</span>
+      staffBuffer.push(`
+        <div class="master-list-item d-flex justify-content-between align-items-center" onclick="toggleMasterStatus('スタッフマスタ', '${escapeHtml(s.id)}', '${escapeHtml(s.name)}', '${escapeHtml(s.status)}')">
+          <span class="fs-5 fw-bold">${escapeHtml(s.name)} <small class="text-muted text-monospace">(${escapeHtml(s.id)})</small></span>
           <span class="badge ${badgeClass} fs-6">${escapeHtml(s.status)}</span>
         </div>
-      `;
+      `);
     });
+    staffList.innerHTML = staffBuffer.join('');
   }
 
-  async function toggleMasterStatus(masterType, name, currentStatus) {
+  async function toggleMasterStatus(masterType, id, name, currentStatus) {
     let newStatus = "";
     if (masterType === "利用者マスタ") {
       if (currentStatus === "利用中") newStatus = "入院中";
@@ -626,7 +631,7 @@
       const response = await fetch(GAS_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, name: name, newStatus: newStatus, authKey: AUTH_KEY }),
+        body: JSON.stringify({ action: "updateMasterStatus", masterType: masterType, id: id, newStatus: newStatus, authKey: AUTH_KEY }),
         redirect: "follow"
       });
       const result = await response.json();
@@ -659,6 +664,11 @@
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
   }
 
+  function loadMoreRecords() {
+    currentDisplayLimit += 20;
+    doSearch();
+  }
+
   function buildTypeUI(typesData) {
     const accordionContainer = document.getElementById('typeAccordionContainer');
     const quickContainer = document.getElementById('quickTypeContainer');
@@ -674,7 +684,6 @@
     });
     
     const sortedTypes = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
-    
     const defaultKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
     topTypes = [...sortedTypes];
     
@@ -727,6 +736,7 @@
 
     let currentCategory = ""; 
     let currentBody = null;
+    let searchTypeBuffer = [];
     
     typesData.forEach((t, index) => {
       let baseColor = "btn-outline-secondary"; let colorClass = "bg-secondary text-white";
@@ -735,7 +745,7 @@
       if(t.category.includes("リスク")) { baseColor = "btn-outline-danger"; colorClass = "bg-danger text-white"; }
 
       const escapedTypeName = escapeHtml(t.name);
-      searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${escapedTypeName}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${escapedTypeName}</label>`;
+      searchTypeBuffer.push(`<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${escapedTypeName}" onchange="applyFilter()"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${escapedTypeName}</label>`);
 
       if (currentCategory !== t.category) {
         currentCategory = t.category;
@@ -764,6 +774,7 @@
       btn.addEventListener('click', function() { handleTypeClick(this, t.name, baseColor); });
       colDiv.appendChild(btn); currentBody.appendChild(colDiv);
     });
+    searchTypeContainer.innerHTML = searchTypeBuffer.join('');
   }
 
   function saveSearchConditions() {
@@ -778,16 +789,23 @@
     localStorage.setItem('careRecordSearchConditions', JSON.stringify(conditions));
   }
 
+  // ★ 修正①: タイミング問題対策（Choices.jsが未生成でもdatasetに一旦退避させる）
   function loadSearchConditions() {
     const saved = localStorage.getItem('careRecordSearchConditions');
     if (saved) {
       const c = JSON.parse(saved);
       document.getElementById('searchStartDate').value = c.startDate || "";
       document.getElementById('searchEndDate').value = c.endDate || "";
-      if (searchUserChoicesInstance && c.selectedUser) searchUserChoicesInstance.setChoiceByValue(c.selectedUser);
       
       document.getElementById('search-status-hospital').checked = !!c.includeHospital;
       document.getElementById('search-status-out').checked = !!c.includeOut;
+      
+      const searchUserSelect = document.getElementById('searchUser');
+      if (searchUserChoicesInstance) {
+        searchUserChoicesInstance.setChoiceByValue(c.selectedUser || "");
+      } else {
+        searchUserSelect.dataset.savedValue = c.selectedUser || "";
+      }
       
       document.querySelectorAll('.search-type-check').forEach(cb => { cb.checked = c.types.includes(cb.value); });
     }
@@ -823,6 +841,7 @@
     }
   }
 
+  // ★ 修正③: innerHTMLの一括描画(バッファ化)による検索一覧表示の超高速化 (ID対応)
   function doSearch() {
     const container = document.getElementById('searchResultsContainer');
     const records = globalRecords; 
@@ -844,9 +863,9 @@
       const rDateStr = r.date.split(' ')[0].replace(/\//g, '-');
       if (startDate && rDateStr < startDate) return false;
       if (endDate && rDateStr > endDate) return false;
-      if (selectedUser && r.user !== selectedUser) return false;
+      if (selectedUser && r.userId !== selectedUser) return false; // IDで比較
       
-      const userObj = globalUserData.find(u => u.name === r.user);
+      const userObj = globalUserData.find(u => u.id === r.userId);
       const uStatus = userObj ? userObj.status : "";
       if (!allowedStatuses.includes(uStatus)) return false; 
       
@@ -863,16 +882,15 @@
       document.getElementById('loadMoreContainer').classList.add('d-none');
     }
 
-    container.innerHTML = "";
     if (displayRecords.length === 0) { container.innerHTML = '<div class="text-muted text-center p-4 fs-5 w-100">該当する記録がありません。</div>'; return; }
 
+    let htmlBuffer = [];
     displayRecords.forEach(r => {
       let badgeColor = "bg-secondary"; let borderLeftColor = "#6c757d";
       if (["日常", "家族連絡", "外出・外泊", "行事参加"].some(el => r.type.includes(el))) { badgeColor = "bg-success"; borderLeftColor = "#198754"; }
       if (["体調", "受診", "入院", "救急搬送"].some(el => r.type.includes(el))) { badgeColor = "bg-primary"; borderLeftColor = "#0d6efd"; }
       if (["ヒヤリハット", "事故", "トラブル・苦情"].some(el => r.type.includes(el))) { badgeColor = "bg-danger"; borderLeftColor = "#dc3545"; }
 
-      // ★ 修正⑧: 記録テキストのエスケープ漏れも集約して完全対策
       let noteHtml = "";
       if (r.note.length > 150) {
         const shortNote = escapeHtml(r.note.slice(0, 150));
@@ -882,28 +900,310 @@
         noteHtml = escapeHtml(r.note);
       }
 
-      // ★ 修正⑧: 全動的変数にescapeHtmlを噛ませてインジェクション攻撃を100%遮断
-      container.innerHTML += `
+      htmlBuffer.push(`
         <div class="col-12">
           <div class="p-3 record-card shadow-sm border" style="border-left-color: ${borderLeftColor}; border-left-width: 6px;">
             <div class="d-flex justify-content-between align-items-center mb-2">
-              <div><span class="fs-4 fw-bold text-dark">${escapeHtml(r.user)} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${escapeHtml(r.type)}</span></div>
+              <div><span class="fs-4 fw-bold text-dark">${escapeHtml(r.userName)} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${escapeHtml(r.type)}</span></div>
               <span class="text-muted fw-bold fs-5">${escapeHtml(r.date)}</span>
             </div>
             <p class="mb-2 fs-5 bg-light p-3 rounded text-dark record-text" style="white-space: pre-wrap;">${noteHtml}</p>
             <div class="d-flex justify-content-between align-items-end mt-2">
               <button class="btn btn-sm btn-outline-secondary fw-bold px-3 py-2" onclick="editRecord('${r.id}')">✏️ 修正する</button>
-              <div class="text-end text-muted fw-bold">記録者: ${escapeHtml(r.staff)}</div>
+              <div class="text-end text-muted fw-bold">記録者: ${escapeHtml(r.staffName)}</div>
             </div>
           </div>
         </div>
-      `;
+      `);
     });
+    container.innerHTML = htmlBuffer.join('');
   }
   
+  window.toggleText = function(btn) {
+    const parentSpan = btn.parentElement;
+    if (parentSpan.classList.contains('short-text')) {
+      parentSpan.style.display = 'none';
+      parentSpan.nextElementSibling.style.display = 'inline';
+    } else {
+      parentSpan.style.display = 'none';
+      parentSpan.previousElementSibling.style.display = 'inline';
+    }
+  };
+
+  window.editRecord = function(id) {
+    const rec = globalRecords.find(r => r.id === id);
+    if(!rec) return;
+
+    const uObj = globalUserData.find(u => u.id === rec.userId);
+    if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
+      document.getElementById('showDischargedSwitch').checked = true;
+      renderUserList();
+    }
+
+    if (document.getElementById('multiUserSwitch').checked) document.getElementById('multiUserSwitch').click();
+    if (userChoicesInstance) userChoicesInstance.setChoiceByValue(rec.userId);
+    if (staffChoicesInstance) staffChoicesInstance.setChoiceByValue(rec.staffId);
+
+    document.getElementById('editRecordId').value = rec.id;
+    const dateParts = rec.date.split(' ');
+    if (dateParts.length === 2) {
+      document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
+    }
+    document.getElementById('note').value = rec.note;
+    updateCharCount(); 
+
+    document.querySelectorAll('.type-btn').forEach(b => {
+      b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
+      if (b.dataset.typeValue === rec.type) {
+         const activeColor = b.dataset.baseColor.replace('outline-', '');
+         b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`; 
+      }
+    });
+    document.getElementById('selectedType').value = rec.type;
+    
+    document.getElementById('stickyTypeDisplay').style.display = "block";
+    document.getElementById('stickyTypeName').innerText = rec.type;
+    
+    document.getElementById('submitBtn').innerText = "✏️ 修正を保存する";
+    document.getElementById('submitBtn').classList.replace("btn-success", "btn-warning");
+    document.getElementById('cancelEditBtn').classList.remove("d-none");
+    document.getElementById('editModeAlert').classList.remove('d-none');
+    document.getElementById('inputFormTitle').innerText = "支援記録 修正";
+    document.getElementById('copyPrevBtn').classList.add('d-none'); 
+    
+    switchView('input');
+    window.scrollTo(0, 0);
+  }
+
+  window.cancelEdit = function() {
+    isFormDirty = false;
+    document.getElementById('editRecordId').value = "";
+    document.getElementById('note').value = ""; updateCharCount();
+    
+    document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
+    document.getElementById('selectedType').value = "";
+    document.getElementById('stickyTypeDisplay').style.display = "none";
+    
+    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById('date').value = d.toISOString().slice(0, 16);
+
+    document.getElementById('submitBtn').innerText = "登録する";
+    document.getElementById('submitBtn').classList.replace("btn-warning", "btn-success");
+    document.getElementById('cancelEditBtn').classList.add("d-none");
+    document.getElementById('editModeAlert').classList.add("d-none");
+    document.getElementById('inputFormTitle').innerText = "支援記録 入力";
+    
+    if(lastSavedRecordData) document.getElementById('copyPrevBtn').classList.remove('d-none');
+  }
+
+  const noteArea = document.getElementById('note');
+  const charCountDisplay = document.getElementById('charCount');
+  function updateCharCount() {
+    const len = noteArea.value.length;
+    charCountDisplay.innerText = `${len} / 5000`;
+    if (len >= 5000) charCountDisplay.classList.replace('text-muted', 'text-danger');
+    else charCountDisplay.classList.replace('text-danger', 'text-muted');
+  }
+  noteArea.addEventListener('input', updateCharCount);
+
+  const voiceBtn = document.getElementById('voiceBtn'); 
+  const voiceBtnText = document.getElementById('voiceBtnText');
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  
+  if (SpeechRecognition) {
+    const recognition = new SpeechRecognition(); recognition.lang = 'ja-JP'; recognition.continuous = true; recognition.interimResults = true; 
+    let isRecording = false; let blinkInterval = null; let blinkFlag = true;
+    let baseText = ''; let lastFinalTranscript = ''; let lastInterimTranscript = ''; 
+    let recordingSeconds = 0; let timerInterval = null;
+    
+    voiceBtn.addEventListener('click', () => {
+      if (!isRecording) { 
+        baseText = noteArea.value; lastFinalTranscript = ''; lastInterimTranscript = '';
+        recognition.start(); isRecording = true; isFormDirty = true;
+        
+        voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
+        recordingSeconds = 0;
+        updateTimerDisplay();
+        timerInterval = setInterval(() => { recordingSeconds++; updateTimerDisplay(); }, 1000);
+        
+        blinkInterval = setInterval(() => { blinkFlag = !blinkFlag; renderTextarea(); }, 500);
+      } else { stopRecording(); }
+    });
+
+    function updateTimerDisplay() {
+      const m = String(Math.floor(recordingSeconds / 60)).padStart(2, '0');
+      const s = String(recordingSeconds % 60).padStart(2, '0');
+      voiceBtnText.innerHTML = `🔴 録音中 ${m}:${s}（タップで停止）`;
+    }
+
+    recognition.onresult = (event) => {
+      lastFinalTranscript = ''; lastInterimTranscript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        let transcript = event.results[i][0].transcript.replace(/[  ]+/g, '').replace(/[０-９Ａ-Ｚａ-ｚ]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+        transcript = transcript.replace(/百([二三四五]十)/g, (m, p1) => p1 === '二十' ? '12' : p1 === '三十' ? '13' : p1 === '四十' ? '14' : '15').replace(/百十/g, '11').replace(/百/g, '10').replace(/([二三四五六七八九])十/g, '$1').replace(/十/g, '1');
+        const kanjiRef = {'〇':'0','一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9'};
+        transcript = transcript.replace(/[〇一二三四五六七八九]/g, s => kanjiRef[s]);
+        transcript = transcript.replace(/(?:体温|たいおん)?([34][0-9])(?:度|ど|点|てん|・|\.)([0-9])分?/, '体温：$1.$2℃ ');
+        transcript = transcript.replace(/(?:サチュレーション|さちゅれーしょん|サーチレーション|さーちれーしょん|酸素濃度|さんそのうど|えすぴーおーつー|エスピーオーツー|サチュ|さちゅ|サチ|さち|サーチ|さーち|酸素|さんそ|血中酸素|けっちゅうさんそ|パルス|ぱるす|オキシ|おきし|[sS][pP][oO]2|[sS][pP][oO]₂)([789][0-9]|100)%?/, 'SpO₂：$1% ');
+        transcript = transcript.replace(/(?:血圧|けつあつ)?(?:上|うえ)?([5-9][0-9]|1[0-9][0-9])(?:の|の下が|下|した|\/)([4-9][0-9])(?:の下が|下|した)?/, '血圧：$1/$2 ');
+        transcript = transcript.replace(/(?:脈拍|みゃくはく|脈|みゃく)([4-9][0-9]|1[0-5][0-9])(?:回|かい)?/, '脈拍：$1回/分 ');
+        transcript = transcript.replace(/点|てん/g, '、').replace(/丸|まる/g, '。').replace(/改行|かいぎょう|開業/g, '\n');
+        
+        if (event.results[i].isFinal) { lastFinalTranscript += transcript; } else { lastInterimTranscript += transcript; }
+      }
+      renderTextarea();
+    };
+
+    function renderTextarea() {
+      let cursor = blinkFlag ? '｜' : '';
+      noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
+      noteArea.scrollTop = noteArea.scrollHeight; 
+      updateCharCount(); 
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      clearInterval(blinkInterval); clearInterval(timerInterval);
+      isRecording = false; recognition.stop(); 
+      noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript; updateCharCount();
+      baseText = ''; lastFinalTranscript = ''; lastInterimTranscript = '';
+      
+      voiceBtnText.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
+      voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
+      
+      const badge = document.getElementById('voiceSuccessBadge');
+      badge.style.opacity = "1"; badge.style.visibility = "visible";
+      setTimeout(() => { badge.style.opacity = "0"; badge.style.visibility = "hidden"; }, 1000);
+    }
+    recognition.onend = () => { if (isRecording) stopRecording(); };
+  } else { voiceBtn.style.display = "none"; }
+
+  window.applyLastSavedData = function() {
+    if(!lastSavedRecordData) return;
+    isFormDirty = true;
+    
+    const uObj = globalUserData.find(u => u.id === lastSavedRecordData.userId);
+    if (uObj && uObj.status === "退去" && !document.getElementById('showDischargedSwitch').checked) {
+      document.getElementById('showDischargedSwitch').checked = true;
+      renderUserList();
+    }
+
+    const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById('date').value = d.toISOString().slice(0, 16);
+    
+    if(userChoicesInstance && lastSavedRecordData.userId) userChoicesInstance.setChoiceByValue(lastSavedRecordData.userId);
+    if(staffChoicesInstance && lastSavedRecordData.staffId) staffChoicesInstance.setChoiceByValue(lastSavedRecordData.staffId);
+    
+    document.getElementById('selectedType').value = lastSavedRecordData.type;
+    document.querySelectorAll('.type-btn').forEach(b => {
+      b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; 
+      if (b.dataset.typeValue === lastSavedRecordData.type) {
+         const activeColor = b.dataset.baseColor.replace('outline-', '');
+         b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`; 
+      }
+    });
+    document.getElementById('stickyTypeDisplay').style.display = "block";
+    document.getElementById('stickyTypeName').innerText = lastSavedRecordData.type;
+    
+    noteArea.value = lastSavedRecordData.note;
+    updateCharCount();
+  }
+
+  document.getElementById('submitBtn').addEventListener('click', async () => {
+    const editId = document.getElementById('editRecordId').value; const isEditMode = !!editId; 
+    const rawDate = document.getElementById('date').value; const staffId = document.getElementById('staff').value;
+    const type = document.getElementById('selectedType').value; const note = document.getElementById('note').value;
+    let usersToSave = [];
+    
+    if (isEditMode) {
+      const singleUserId = document.getElementById('user').value;
+      if (!singleUserId) { alert("👤 利用者名を選択してください。"); return; }
+      const uObj = globalUserData.find(u => u.id === singleUserId);
+      usersToSave.push({ id: uObj.id, name: uObj.name });
+    } else {
+      if (document.getElementById('multiUserSwitch').checked) {
+        document.querySelectorAll('.multi-user-check:checked').forEach(cb => {
+          const uObj = globalUserData.find(u => u.id === cb.value);
+          if (uObj) usersToSave.push({ id: uObj.id, name: uObj.name });
+        });
+        if (usersToSave.length === 0) { alert("👤 利用者を1名以上選択してください。"); return; }
+      } else {
+        const singleUserId = document.getElementById('user').value;
+        if (!singleUserId) { alert("👤 利用者名を選択してください。"); return; }
+        const uObj = globalUserData.find(u => u.id === singleUserId);
+        usersToSave.push({ id: uObj.id, name: uObj.name });
+      }
+    }
+
+    if(!rawDate) { alert("📅 発生日時を入力してください。"); return; }
+    if(!staffId) { alert("📛 記録者名を選択してください。"); return; }
+    if(!type) { alert("🏷️ 種別を選択してください。"); return; }
+    if(!note || !note.trim()) { alert("📝 特記事項（記録内容）を入力してください。"); return; }
+    if(note.length > 5000) { alert("文字数が多すぎます（最大5000文字まで）。"); return; }
+
+    const sObj = globalStaffData.find(s => s.id === staffId);
+    const staffParam = { id: sObj.id, name: sObj.name };
+
+    const date = rawDate.replace('T', ' ').replace(/-/g, '/'); localStorage.setItem('lastSavedStaff', staffId);
+
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true; submitBtn.innerText = "⏳ 保存中...";
+
+    const payload = { action: isEditMode ? "updateRecord" : "saveRecord", date: date, users: usersToSave, staff: staffParam, type: type, note: note, authKey: AUTH_KEY };
+    if (isEditMode) payload.id = editId;
+
+    try {
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(payload), redirect: "follow" });
+      const result = await response.json();
+      
+      if(result.status === "success") {
+        isFormDirty = false; 
+        submitBtn.innerText = "✓ 保存しました";
+        submitBtn.classList.replace("btn-success", "btn-primary"); 
+        
+        lastSavedRecordData = { userId: usersToSave[0].id, staffId: staffParam.id, type: type, note: note };
+        
+        await fetchInitialRecords();
+        buildTypeUI(globalTypesData); 
+
+        setTimeout(() => {
+          if (isEditMode) {
+            cancelEdit(); switchView('dashboard');
+          } else {
+            document.getElementById('note').value = ""; updateCharCount();
+            document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
+            document.getElementById('selectedType').value = "";
+            document.getElementById('stickyTypeDisplay').style.display = "none";
+            
+            const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+            document.getElementById('date').value = d.toISOString().slice(0, 16);
+            document.getElementById('copyPrevBtn').classList.remove('d-none'); 
+          }
+          submitBtn.disabled = false; submitBtn.innerText = "登録する";
+          submitBtn.classList.replace("btn-primary", "btn-success");
+        }, 1200); 
+      } else { 
+        alert("処理に失敗しました: " + result.message); 
+        submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
+      }
+    } catch (error) { 
+      alert("通信エラーが発生しました。"); 
+      submitBtn.disabled = false; submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
+    }
+  });
+
+  function clearSelect(id) {
+    if (id === 'user' && userChoicesInstance) userChoicesInstance.setChoiceByValue("");
+    if (id === 'staff' && staffChoicesInstance) staffChoicesInstance.setChoiceByValue("");
+    if (id === 'searchUser' && searchUserChoicesInstance) { searchUserChoicesInstance.setChoiceByValue(""); doSearch(); }
+  }
+  
+  // ★ 修正①: 条件復元の完全同期ロジック
   function filterSearchUserOptions() {
-    if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
     const searchUserSelect = document.getElementById('searchUser');
+    const savedValue = searchUserSelect.dataset.savedValue || searchUserSelect.value;
+
+    if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
     searchUserSelect.innerHTML = '<option value="">全員（絞り込みなし）</option>';
     
     const includeHospital = document.getElementById('search-status-hospital').checked;
@@ -918,13 +1218,42 @@
         let displaySuffix = "";
         if (u.status === "入院中") displaySuffix = "（入院中）";
         if (u.status === "退去") displaySuffix = "（退去）";
-        const escapedName = escapeHtml(u.name);
-        searchUserSelect.innerHTML += `<option value="${escapedName}">${escapedName} ${displaySuffix}</option>`;
+        searchUserSelect.innerHTML += `<option value="${escapeHtml(u.id)}">${escapeHtml(u.name)} ${displaySuffix}</option>`;
       }
     });
+    
     searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
     
-    document.getElementById('searchUser').addEventListener('change', applyFilter, false);
+    if (savedValue) {
+      searchUserChoicesInstance.setChoiceByValue(savedValue);
+      searchUserSelect.dataset.savedValue = ""; 
+    }
+    
+    searchUserSelect.addEventListener('change', applyFilter, false);
+  }
+
+  async function addMaster(masterType) {
+    const inputId = masterType === "利用者マスタ" ? "newUserName" : "newStaffName";
+    const nameInput = document.getElementById(inputId); const name = nameInput.value.trim();
+    if (!name) { alert("氏名を入力してください。"); return; }
+    if (!confirm(`${masterType}に「${name}」を追加しますか？`)) return;
+    try {
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "addMaster", masterType: masterType, name: name, authKey: AUTH_KEY }), redirect: "follow" });
+      const result = await response.json();
+      if (result.status === "success") { alert("追加しました！"); nameInput.value = ""; await loadAllMasterData(); }
+      else { alert("追加に失敗しました: " + result.message); }
+    } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
+  }
+
+  async function fetchInitialRecords() {
+    try {
+      const response = await fetch(GAS_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action: "searchRecords", authKey: AUTH_KEY }), redirect: "follow" });
+      const result = await response.json();
+      if (result.status === "success") {
+        globalRecords = result.records;
+        if (!document.getElementById('view-dashboard').classList.contains('d-none')) doSearch();
+      }
+    } catch (e) { console.error(e); }
   }
 </script>
 
