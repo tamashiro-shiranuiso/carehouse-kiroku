@@ -104,17 +104,22 @@
     <li class="nav-item"><button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">👀 記録の確認・検索</button></li>
   </ul>
 
-  <!-- ★ 初期設定画面（施設管理キー入力欄を追加） -->
+  <!-- 初期設定画面 -->
   <div id="view-setup" class="view-section d-none">
-    <div class="card p-5 shadow mx-auto" style="max-width: 650px; margin-top: 10vh; border-top: 8px solid #0d6efd;">
+    <div class="card p-5 shadow mx-auto" style="max-width: 650px; margin-top: 8vh; border-top: 8px solid #0d6efd;">
       <h2 class="text-center mb-4 fw-bold text-dark">🔗 システム初期設定</h2>
-      <div class="mb-4">
+      <div class="mb-3">
         <label class="form-label fw-bold text-secondary">WebアプリURL (GAS)</label>
         <input type="text" id="setupGasUrl" class="form-control form-control-lg bg-light" placeholder="https://script.google.com/macros/s/...">
       </div>
-      <div class="mb-5">
-        <label class="form-label fw-bold text-secondary">🔑 施設管理キー (初回のみ設定)</label>
-        <input type="password" id="setupAuthKey" class="form-control form-control-lg bg-light" placeholder="施設固有の管理キーを入力">
+      <!-- ★ 修正③: 施設IDの入力欄を新設 -->
+      <div class="mb-3">
+        <label class="form-label fw-bold text-secondary">🏢 施設ID (例: carehouse_001)</label>
+        <input type="text" id="setupFacilityId" class="form-control form-control-lg bg-light" placeholder="法人の管理ルールに沿ったIDを入力">
+      </div>
+      <div class="mb-4">
+        <label class="form-label fw-bold text-secondary">🔑 施設接続キー (初回登録 / 認証用)</label>
+        <input type="password" id="setupAuthKey" class="form-control form-control-lg bg-light" placeholder="接続に必要な固有のキーを入力">
       </div>
       <button class="btn btn-primary btn-lg w-100 fw-bold p-3 shadow-sm" onclick="saveSystemSettings()">システムに連携して開始する</button>
     </div>
@@ -156,7 +161,7 @@
                     <input class="form-check-input" type="checkbox" id="showDischargedSwitch" onchange="renderUserList()">
                     <label class="form-check-label text-secondary small fw-bold" for="showDischargedSwitch">👻 退去者を表示</label>
                   </div>
-                  <div class="form-check form-switch" id="multiSwitchContainer">
+                  <div class="form-check form-switch" id="multiUserSwitchContainer">
                     <input class="form-check-input" type="checkbox" id="multiUserSwitch" onchange="toggleMultiUser()">
                     <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人入力</label>
                   </div>
@@ -327,12 +332,17 @@
         <div id="adminSection" class="col-12 mt-4 d-none">
           <div class="p-4 bg-white rounded-3 border border-danger shadow-sm">
             <h5 class="fw-bold text-danger mb-3">⚠️ システム連携設定 (管理者専用メニュー)</h5>
-            <div class="mb-3">
+            <div class="mb-2">
+              <label class="form-label small text-muted mb-1">施設ID</label>
+              <input type="text" id="currentFacilityId" class="form-control bg-light text-muted" readonly>
+            </div>
+            <div class="mb-2">
               <label class="form-label small text-muted mb-1">現在の連携URL</label>
               <input type="text" id="currentGasUrl" class="form-control bg-light text-muted" readonly>
             </div>
             <div class="mb-3">
-              <label class="form-label small text-muted mb-1">現在の管理キー</label>
+              <!-- ★ 修正③: 文言を「接続キー」に変更 -->
+              <label class="form-label small text-muted mb-1">施設接続キー</label>
               <input type="text" id="currentAuthKey" class="form-control bg-light text-muted" readonly>
             </div>
             <div class="text-end">
@@ -348,7 +358,9 @@
 
 <script>
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
-  let AUTH_KEY = localStorage.getItem('savedAuthKey') || ""; // ★ 変数名をauthKeyベースに変更
+  // ★ 修正③: localStorageキー名を「facilityAccessKey」と「savedFacilityId」に変更
+  let AUTH_KEY = localStorage.getItem('facilityAccessKey') || ""; 
+  let FACILITY_ID = localStorage.getItem('savedFacilityId') || "";
   
   let globalUserData = [];
   let globalStaffData = []; 
@@ -397,47 +409,55 @@
   }
 
   window.onload = function() {
-    if (!GAS_URL || !AUTH_KEY) { 
+    if (!GAS_URL || !AUTH_KEY || !FACILITY_ID) { 
       switchView('setup'); 
     } else {
       document.getElementById('appHeader').classList.remove('d-none');
       document.getElementById('mainTab').classList.remove('d-none');
       document.getElementById('currentGasUrl').value = GAS_URL;
       document.getElementById('currentAuthKey').value = AUTH_KEY;
+      document.getElementById('currentFacilityId').value = FACILITY_ID;
       switchView('input');
       loadAllMasterData();
     }
   };
 
-  // ★ 連携処理の書き換え：まずGASへPOST通信し、暗号化シートを構築＆検証する
   async function saveSystemSettings() {
     const url = document.getElementById('setupGasUrl').value.trim();
+    const id = document.getElementById('setupFacilityId').value.trim();
     const key = document.getElementById('setupAuthKey').value.trim();
     
     if (!url.startsWith("https://script.google.com/macros/s/")) {
       alert("正しいWebアプリURLを入力してください。"); return;
     }
+    if (!id) {
+      alert("施設IDを入力してください。"); return;
+    }
     if (!key) {
-      alert("施設管理キーを入力してください。"); return;
+      alert("施設接続キーを入力してください。"); return;
     }
     
     try {
+      // 登録・検証処理も完全にPOSTで行う
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain' },
-        body: JSON.stringify({ action: "setupSystem", authKey: key }),
+        body: JSON.stringify({ action: "setupSystem", authKey: key, facilityId: id }),
         redirect: "follow"
       });
       const result = await response.json();
       
       if (result.status === "success") {
         localStorage.setItem('savedGasUrl', url);
-        localStorage.setItem('savedAuthKey', key);
+        localStorage.setItem('facilityAccessKey', key);
+        localStorage.setItem('savedFacilityId', id);
         GAS_URL = url;
         AUTH_KEY = key;
+        FACILITY_ID = id;
         
         document.getElementById('currentGasUrl').value = url;
         document.getElementById('currentAuthKey').value = key;
+        document.getElementById('currentFacilityId').value = id;
         
         document.getElementById('appHeader').classList.remove('d-none');
         document.getElementById('mainTab').classList.remove('d-none');
@@ -448,16 +468,18 @@
         alert("初期連携に失敗しました:\n" + result.message);
       }
     } catch(e) {
-      alert("通信エラーが発生しました。URLが正しいか、またはGASが正しく最新版に更新（デプロイ）されているか確認してください。");
+      alert("通信エラーが発生しました。URLが正しいか、マスタシートがスプレッドシートに全て揃っているか確認してください。");
     }
   }
 
   function clearSystemSettings() {
-    if (confirm("本当に連携を解除しますか？\n再度利用するにはURLと施設管理キーの再入力が必要になります。")) { 
+    if (confirm("本当に連携を解除しますか？\n再度利用するには再入力が必要になります。")) { 
       localStorage.removeItem('savedGasUrl'); 
-      localStorage.removeItem('savedAuthKey');
+      localStorage.removeItem('facilityAccessKey');
+      localStorage.removeItem('savedFacilityId');
       GAS_URL = ""; 
       AUTH_KEY = "";
+      FACILITY_ID = "";
       location.reload(); 
     }
   }
@@ -471,11 +493,15 @@
     }
   }
 
+  // ★ 修正②: マスタデータの読み込みを完全にPOST通信に統合
   async function loadAllMasterData() {
     try {
-      // ★ GETリクエストのパラメータとしてauthKeyを送信
-      const fetchUrl = `${GAS_URL}?authKey=${encodeURIComponent(AUTH_KEY)}`;
-      const response = await fetch(fetchUrl, { redirect: "follow" });
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: "getMaster", authKey: AUTH_KEY }),
+        redirect: "follow"
+      });
       const data = await response.json();
       
       if (data.status === "error") {
@@ -510,7 +536,7 @@
 
     } catch (error) {
       console.error(error);
-      alert(`データの読み込みに失敗しました。\n\n【原因】\n${error.message}\n\n連携URLまたは管理キーが間違っている可能性があります。`);
+      alert(`データの読み込みに失敗しました。\n\n【原因】\n${error.message}`);
     }
   }
 
@@ -625,6 +651,7 @@
     document.querySelectorAll('.multi-user-check').forEach(cb => cb.checked = checked);
   }
 
+  // もっと過去の記録を見る
   function loadMoreRecords() {
     currentDisplayLimit += 20;
     doSearch();
@@ -1091,7 +1118,6 @@
     submitBtn.disabled = true;
     submitBtn.innerText = "⏳ 保存中...";
 
-    // ★ すべてのPOSTペイロードに authKey を追加
     const payload = { action: isEditMode ? "updateRecord" : "saveRecord", date: date, users: usersToSave, staff: staff, type: type, note: note, authKey: AUTH_KEY };
     if (isEditMode) payload.id = editId;
 
