@@ -140,7 +140,6 @@
             </div>
             
             <div class="mb-3">
-              <!-- 利用者名ヘッダー（横並びで統一） -->
               <div class="d-flex justify-content-between align-items-end mb-1">
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0">👤 利用者名</label>
@@ -168,7 +167,6 @@
             </div>
 
             <div class="mb-3">
-              <!-- 記録者名ヘッダー（位置を利用者名と完全に揃えました） -->
               <div class="d-flex gap-2 align-items-center mb-1">
                 <label class="form-label mb-0">📛 記録者名</label>
                 <span id="staffClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('staff')">❌ 選択を消す</span>
@@ -238,7 +236,6 @@
             </div>
 
             <div class="col-md-6">
-              <!-- 検索画面の利用者名ヘッダーも横並びに統一 -->
               <div class="d-flex gap-2 align-items-center mb-2">
                 <label class="form-label text-secondary small mb-0">③ 利用者名（個人の絞り込み）</label>
                 <span class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('searchUser')">❌ 選択を消す</span>
@@ -860,16 +857,17 @@
         }
       }
       if (finalTranscript !== '') {
-        // ① 余計な半角・全角スペースを削除
+        // ① 余計な半角・全角スペースを完全に削除
         finalTranscript = finalTranscript.replace(/[  ]+/g, '');
         
-        // ★【新機能】「点/てん」を「、」、「丸/まる」を「。」、「改行/かいぎょう」を本物の改行に一発置換
+        // ★【誤変換・自動改行の修正】「点/てん」を「、」、「丸/まる」を「。」、誤変換されやすい「開業」も含めて本物の改行に置換
         finalTranscript = finalTranscript
           .replace(/点|てん/g, '、')
           .replace(/丸|まる/g, '。')
-          .replace(/改行|かいぎょう/g, '\n');
+          .replace(/改行|かいぎょう|開業/g, '\n');
 
-        noteArea.value += finalTranscript + "\n"; 
+        // ★ 末尾の「\n」を廃止。これで細切れの勝手な自動改行が完全にストップします
+        noteArea.value += finalTranscript; 
       }
     };
 
