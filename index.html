@@ -18,7 +18,7 @@
 
   <style>
     body { 
-      background-color: #f2eee5; /* 外側の余白は少し濃いめの落ち着いたベージュ */
+      background-color: #f2eee5;
       padding: 20px 10px; 
       font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
       color: #3b4045; 
@@ -32,16 +32,14 @@
       font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
     }
 
-    /* 目に優しいライトベージュ（ミルクティー色）背景の設定 */
     .card { 
       border-radius: 15px; 
       box-shadow: 0 4px 15px rgba(0,0,0,0.08); 
-      background-color: #faf7f0; /* 温かみのある明るいミルクティー色 */
+      background-color: #faf7f0; 
     }
     
-    /* 入力欄やまぶしい白の部分も目に優しく */
     .form-control, .form-select {
-      background-color: #fffdf9 !important; /* 真っ白よりほんの少しだけベージュを入れる */
+      background-color: #fffdf9 !important;
       border: 1px solid #ced4da;
     }
     .form-control:focus, .form-select:focus {
@@ -50,7 +48,6 @@
 
     .form-label { font-weight: bold; font-size: 1.1rem; }
     .btn-voice { background-color: #ffc107; color: #000; font-weight: bold; }
-    #loading { display: none; color: #0d6efd; font-weight: bold; text-align: center; margin-top: 10px; }
     
     .nav-pills .nav-link { 
       font-size: 1.15rem; font-weight: bold; padding: 15px; border-radius: 10px; 
@@ -74,7 +71,6 @@
     .master-list-item { background-color: #faf7f0; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
 
-    /* Choices.js の見た目をベージュテーマに合わせて調整 */
     .choices__inner {
       border-radius: 0.5rem; background-color: #fffdf9; border: 1px solid #ced4da;
       font-size: 1.1rem; padding: 0.5rem 2.5rem 0.5rem 1rem; min-height: 50px;
@@ -92,11 +88,9 @@
     .choices__placeholder { color: #6c757d; opacity: 1; }
     .choices__list--dropdown .choices__item--selectable { padding-right: 10px; font-size: 1.1rem; }
     
-    /* 選択クリア用テキストボタンのスタイル */
     .btn-clear-select { cursor: pointer; user-select: none; transition: opacity 0.2s; }
     .btn-clear-select:hover { opacity: 0.7; }
 
-    /* 認識完了バッジのガタつき防止フェードアニメーション用 */
     #voiceSuccessBadge {
       transition: opacity 0.2s ease, visibility 0.2s ease;
     }
@@ -194,18 +188,19 @@
               <label class="form-label">📝 特記事項</label>
               <button type="button" id="voiceBtn" class="btn btn-voice w-100 mb-1 p-3 rounded-3 shadow-sm">🎤 音声入力スタート（ここを押して話す）</button>
               
-              <!-- ガタつきを完全に防止する「1行固定枠」の認識完了表示エリア -->
+              <!-- ガタつき防止バッジ -->
               <div class="text-center mb-1" style="min-height: 32px; line-height: 32px;">
                 <span id="voiceSuccessBadge" class="badge bg-success p-2 fs-6" style="opacity: 0; visibility: hidden;">✓ 認識完了</span>
               </div>
               
-              <textarea id="note" class="form-control" rows="8" placeholder="ここに記録が入ります..." required></textarea>
+              <!-- ★ HTML側での入力文字数制限（5000文字） -->
+              <textarea id="note" class="form-control" rows="8" placeholder="ここに記録が入ります..." maxlength="5000" required></textarea>
             </div>
             <div class="d-flex gap-2">
               <button type="button" id="cancelEditBtn" class="btn btn-secondary btn-lg fw-bold p-3 shadow d-none" onclick="cancelEdit()">やめる</button>
+              <!-- ★ 送信ボタン（ID付与） -->
               <button type="button" id="submitBtn" class="btn btn-primary btn-lg w-100 p-3 rounded-3 fw-bold shadow">登録する</button>
             </div>
-            <div id="loading" class="fs-5">処理中...しばらくお待ちください。</div>
           </div>
         </div>
       </form>
@@ -392,8 +387,9 @@
 
   function saveGasUrl() {
     const url = document.getElementById('setupGasUrl').value.trim();
-    if (!url.startsWith("https://script.google.com/")) {
-      alert("正しいWebアプリURLを入力してください。"); return;
+    // ★ URL制限を /macros/s/ まで厳格化
+    if (!url.startsWith("https://script.google.com/macros/s/")) {
+      alert("正しいWebアプリURLを入力してください。\n（https://script.google.com/macros/s/ から始まるURLです）"); return;
     }
     localStorage.setItem('savedGasUrl', url);
     GAS_URL = url;
@@ -557,7 +553,6 @@
     }
   }
 
-  // キーボードの Delete や Backspace キーでのクリアを安全に再現する処理
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Backspace' || e.key === 'Delete') {
       const activeEl = document.activeElement;
@@ -839,7 +834,6 @@
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); btn.disabled = false; btn.innerHTML = originalText; }
   }
 
-  // ★ 音声入力UI改善仕様 & バイタルサイン広域・自動半角スペース整形フィルター搭載エンジン
   const voiceBtn = document.getElementById('voiceBtn'); const noteArea = document.getElementById('note');
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   
@@ -847,14 +841,14 @@
     const recognition = new SpeechRecognition(); 
     recognition.lang = 'ja-JP'; 
     recognition.continuous = true; 
-    recognition.interimResults = true; // ①② リアルタイムに認識途中結果を取得する
+    recognition.interimResults = true; 
 
     let isRecording = false;
     let blinkInterval = null;
     let blinkFlag = true;
-    let baseText = '';            // 録音前のテキストエリアの中身
-    let lastFinalTranscript = '';   // 今回のセッションで確定した文章
-    let lastInterimTranscript = ''; // 今回のセッションで未確定の文章
+    let baseText = '';            
+    let lastFinalTranscript = '';   
+    let lastInterimTranscript = ''; 
     
     voiceBtn.addEventListener('click', () => {
       if (!isRecording) { 
@@ -866,7 +860,6 @@
         voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
         isRecording = true; 
         
-        // ① 0.5秒間隔でカーソルを点滅させるタイマーを起動
         blinkInterval = setInterval(() => {
           blinkFlag = !blinkFlag;
           renderTextarea();
@@ -883,13 +876,8 @@
       for (let i = 0; i < event.results.length; i++) {
         let transcript = event.results[i][0].transcript;
         
-        // 【クレンジング処理】余計なスペースを完全除去
         transcript = transcript.replace(/[  ]+/g, '');
-        
-        // 【クレンジング処理】全角英数字を半角に強制統一
         transcript = transcript.replace(/[０-９Ａ-Ｚａ-ｚ]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
-        
-        // 【クレンジング処理】バイタル用の漢数字（三十六度五分、百二十など）を正確な半角数字に翻訳
         transcript = transcript
           .replace(/百([二三四五]十)/g, (m, p1) => p1 === '二十' ? '12' : p1 === '三十' ? '13' : p1 === '四十' ? '14' : '15')
           .replace(/百十/g, '11')
@@ -899,20 +887,11 @@
         const kanjiRef = {'〇':'0','一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','七':'7','八':'8','九':'9'};
         transcript = transcript.replace(/[〇一二三四五六七八九]/g, s => kanjiRef[s]);
 
-        // ★【バイタル自動整形フィルター：あらゆる言い換え表現を網羅し、末尾に自動で半角スペースを挿入】
-        // 1. 体温（度・分、てん）
         transcript = transcript.replace(/(?:体温|たいおん)?([34][0-9])(?:度|ど|点|てん|・|\.)([0-9])分?/, '体温：$1.$2℃ ');
-        
-        // 2. ★【広域カバー版】サチュレーション（サーチ、サチュ、サチ、酸素、パルス、オキシ、大文字小文字問わないspo2すべて対応）
         transcript = transcript.replace(/(?:サチュレーション|さちゅれーしょん|サーチレーション|さーちれーしょん|酸素濃度|さんそのうど|えすぴーおーつー|エスピーオーツー|サチュ|さちゅ|サチ|さち|サーチ|さーち|酸素|さんそ|血中酸素|けっちゅうさんそ|パルス|ぱるす|オキシ|おきし|[sS][pP][oO]2|[sS][pP][oO]₂)([789][0-9]|100)%?/, 'SpO₂：$1% ');
-        
-        // 3. 血圧（上・下、〜の〜）
         transcript = transcript.replace(/(?:血圧|けつあつ)?(?:上|うえ)?([5-9][0-9]|1[0-9][0-9])(?:の|の下が|下|した|\/)([4-9][0-9])(?:の下が|下|した)?/, '血圧：$1/$2 ');
-        
-        // 4. 脈拍（みゃくはく、脈）
         transcript = transcript.replace(/(?:脈拍|みゃくはく|脈|みゃく)([4-9][0-9]|1[0-5][0-9])(?:回|かい)?/, '脈拍：$1回/分 ');
 
-        // 【コマンド処理】点・丸・改行・開業の記号置換
         transcript = transcript
           .replace(/点|てん/g, '、')
           .replace(/丸|まる/g, '。')
@@ -927,11 +906,10 @@
       renderTextarea();
     };
 
-    // ②④ 確定文字 + 変換途中文字 + 点滅カーソル を一瞬で描画し、自動スクロールさせる関数
     function renderTextarea() {
       let cursor = blinkFlag ? '｜' : '';
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
-      noteArea.scrollTop = noteArea.scrollHeight; // ④ 長文になっても最新位置を自動追従
+      noteArea.scrollTop = noteArea.scrollHeight; 
     }
 
     function stopRecording() {
@@ -940,7 +918,6 @@
       isRecording = false;
       recognition.stop(); 
       
-      // カーソルを完全に除去したテキストを確定
       noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript;
       baseText = '';
       lastFinalTranscript = '';
@@ -949,7 +926,6 @@
       voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
       voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
       
-      // ③ 認識完了バッジをガタつきなく約1秒間だけフェード表示する演出
       const badge = document.getElementById('voiceSuccessBadge');
       badge.style.opacity = "1";
       badge.style.visibility = "visible";
@@ -970,6 +946,7 @@
     alert("このブラウザは音声入力に対応していません。"); 
   }
 
+  // 送信処理
   document.getElementById('submitBtn').addEventListener('click', async () => {
     const editId = document.getElementById('editRecordId').value;
     const isEditMode = !!editId; 
@@ -999,13 +976,18 @@
     if(!staff) { alert("📛 記録者名を選択してください。"); return; }
     if(!type) { alert("🏷️ 種別を選択してください。"); return; }
     if(!note || !note.trim()) { alert("📝 特記事項（記録内容）を入力してください。"); return; }
+    
+    // ★ JS側での文字数チェック
+    if(note.length > 5000) { alert("文字数が多すぎます（最大5000文字まで）。不要な文字を消去してください。"); return; }
 
     const date = rawDate.replace('T', ' ').replace(/-/g, '/');
     localStorage.setItem('lastSavedStaff', staff);
 
-    document.getElementById('submitBtn').style.display = 'none';
+    // ★ ボタンの無効化（連打による二重登録防止）
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerText = "⏳ 保存中...";
     if(document.getElementById('cancelEditBtn')) document.getElementById('cancelEditBtn').style.display = 'none';
-    document.getElementById('loading').style.display = 'block';
 
     const payload = { 
       action: isEditMode ? "updateRecord" : "saveRecord",
@@ -1042,9 +1024,10 @@
       } else { alert("処理に失敗しました: " + result.message); }
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
     finally { 
-      document.getElementById('submitBtn').style.display = 'block'; 
-      if(document.getElementById('cancelEditBtn')) document.getElementById('cancelEditBtn').style.display = 'block';
-      document.getElementById('loading').style.display = 'none'; 
+      // ★ 保存完了後、ボタンの無効化を解除
+      submitBtn.disabled = false;
+      submitBtn.innerText = isEditMode ? "✏️ 修正を保存する" : "登録する";
+      if(document.getElementById('cancelEditBtn') && isEditMode) document.getElementById('cancelEditBtn').style.display = 'block';
     }
   });
 </script>
