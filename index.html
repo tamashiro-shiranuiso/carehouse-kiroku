@@ -5,15 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ケアハウス記録管理システム</title>
   
-  <!-- ★ Webフォント（Zen Maru Gothic）の読み込み -->
+  <!-- Webフォント（Zen Maru Gothic）の読み込み -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
   
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   
+  <!-- ★ 検索付きドロップダウン（Choices.js）の読み込み -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+
   <style>
-    /* ★ ベースのフォント設定（本文は読みやすい標準ゴシック、文字色は目に優しい濃いグレー） */
     body { 
       background-color: #f8f9fa; 
       padding: 20px 10px; 
@@ -21,12 +24,10 @@
       color: #3b4045; 
     }
     
-    /* ★ 見出し、ボタン、タブなどの「案内UI」には丸ゴシックを適用して柔らかく */
     h1, h2, h3, h4, h5, h6, .nav-link, .btn, .category-header, .search-checkbox-label, .form-label {
       font-family: 'Zen Maru Gothic', sans-serif;
     }
 
-    /* 入力欄や記録本文の中身は標準ゴシックを維持（誤読防止） */
     .form-control, .form-select, .record-text {
       font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
     }
@@ -36,20 +37,15 @@
     .btn-voice { background-color: #ffc107; color: #000; font-weight: bold; }
     #loading { display: none; color: #0d6efd; font-weight: bold; text-align: center; margin-top: 10px; }
     
-    /* タブのデザイン（非選択時は控えめに、選択時はテーマカラーへ） */
     .nav-pills .nav-link { 
       font-size: 1.15rem; font-weight: bold; padding: 15px; border-radius: 10px; 
       color: #838a91; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
       transition: background-color 0.2s, color 0.2s;
     }
     .nav-pills .nav-link:hover { background-color: #f1f3f5; }
-    
-    /* 入力タブ（アクティブ時＝青） */
     #input-tab.active { background-color: #0d6efd !important; color: #fff !important; }
-    /* 検索タブ（アクティブ時＝緑） */
     #dashboard-tab.active { background-color: #198754 !important; color: #fff !important; }
 
-    /* 画面ごとのカード上部フチ色設定（タブの色と連動） */
     .view-card-input { border-top: 6px solid #0d6efd; }
     .view-card-dashboard { border-top: 6px solid #198754; }
     .view-card-master { border-top: 6px solid #6c757d; }
@@ -61,21 +57,35 @@
 
     .record-card { background-color: #fff; border-radius: 12px; }
     .master-list-item { background-color: #fff; border-radius: 10px; margin-bottom: 8px; padding: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    
     .search-checkbox-label { padding: 10px 15px; font-weight: bold; font-size: 1rem; }
+
+    /* ★ Choices.js の見た目をBootstrapに合わせて調整 */
+    .choices__inner {
+      border-radius: 0.5rem; background-color: #fff; border: 1px solid #dee2e6;
+      font-size: 1.1rem; padding: 0.5rem 1rem; min-height: 50px;
+    }
+    .choices[data-type*="select-one"]::after {
+      border-color: #6c757d transparent transparent transparent; border-width: 6px; margin-top: -3px;
+    }
+    .choices[data-type*="select-one"].is-open::after {
+      border-color: transparent transparent #6c757d transparent; margin-top: -9px;
+    }
+    .choices__list--dropdown {
+      border-radius: 0.5rem; border: 1px solid #dee2e6; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 1050;
+    }
+    .choices__placeholder { color: #6c757d; opacity: 1; }
+    .choices__list--dropdown .choices__item--selectable { padding-right: 10px; font-size: 1.1rem; }
   </style>
 </head>
 <body>
 
 <div class="container-xl">
   
-  <!-- アプリヘッダー -->
   <div id="appHeader" class="d-none d-flex justify-content-between align-items-center mb-3 px-2">
     <h1 class="h5 mb-0 fw-bold text-secondary">ケアハウス記録管理システム</h1>
     <button class="btn btn-outline-secondary btn-sm fw-bold px-3 py-2 shadow-sm" onclick="switchView('master')">⚙️ 設定</button>
   </div>
 
-  <!-- メインタブ（2つ） -->
   <ul class="nav nav-pills nav-fill gap-3 mb-4 d-none" id="mainTab" role="tablist">
     <li class="nav-item"><button class="nav-link active" id="input-tab" onclick="switchView('input')">📝 記録を入力する</button></li>
     <li class="nav-item"><button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">👀 記録の確認・検索</button></li>
@@ -95,7 +105,7 @@
     </div>
   </div>
 
-  <!-- 記録入力画面（青テーマ） -->
+  <!-- 記録入力画面 -->
   <div id="view-input" class="view-section d-none">
     <div class="card p-4 view-card-input shadow-sm">
       <h3 class="text-center mb-4 fw-bold text-primary">支援記録 入力</h3>
@@ -117,9 +127,15 @@
                   <label class="form-check-label text-primary small fw-bold" for="multiUserSwitch">👥 複数人に入力する</label>
                 </div>
               </div>
-              <select id="user" class="form-select form-select-lg" required>
-                <option value="">読み込み中...</option>
-              </select>
+              
+              <!-- ★ 1人入力時の検索ドロップダウンコンテナ -->
+              <div id="singleUserContainer">
+                <select id="user" class="form-select form-select-lg" required>
+                  <option value="">読み込み中...</option>
+                </select>
+              </div>
+
+              <!-- ★ 複数人入力時のチェックボックスコンテナ -->
               <div id="multiUserContainer" class="d-none border rounded p-3 bg-light shadow-sm" style="max-height: 250px; overflow-y: auto;">
                 <div class="mb-3 pb-2 border-bottom d-flex gap-2">
                   <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="selectAllUsers(true)">☑ すべて選択</button>
@@ -159,12 +175,11 @@
     </div>
   </div>
 
-  <!-- 記録の確認・検索画面（緑テーマ） -->
+  <!-- 記録の確認・検索画面 -->
   <div id="view-dashboard" class="view-section d-none">
     <div class="card p-4 view-card-dashboard shadow-sm">
       <h3 class="text-center mb-4 fw-bold text-success">記録の確認・検索</h3>
       
-      <!-- アコーディオン型：検索・絞り込みエリア -->
       <div class="mb-4">
         <button id="toggleSearchBtn" class="btn btn-outline-success w-100 fw-bold p-3 fs-5 bg-white shadow-sm" type="button" onclick="toggleSearchAccordion()">
           🔍 検索・絞り込み条件を指定する（タップで開く）
@@ -215,9 +230,7 @@
       </div>
 
       <h5 id="resultTitle" class="fw-bold text-secondary mb-3">📋 最新の記録</h5>
-      <div id="searchResultsContainer" class="row g-3">
-        <!-- ここにカードが並ぶ -->
-      </div>
+      <div id="searchResultsContainer" class="row g-3"></div>
       
       <div id="loadMoreContainer" class="text-center mt-4 d-none">
         <button class="btn btn-secondary btn-lg fw-bold rounded-pill px-5 shadow-sm" onclick="loadMoreRecords()">🔽 もっと過去の記録を見る</button>
@@ -226,11 +239,9 @@
     </div>
   </div>
 
-  <!-- マスタ管理画面（グレーテーマ・隠し機能付き） -->
+  <!-- マスタ管理画面 -->
   <div id="view-master" class="view-section d-none">
     <div class="card p-4 view-card-master shadow-sm">
-      
-      <!-- ★ タップで管理者メニューを呼び出す裏ワザタイトル -->
       <div class="text-center mb-4" onclick="handleSecretTap()" style="cursor: pointer; user-select: none;">
         <h3 class="fw-bold text-secondary mb-1">⚙️ マスタ管理（名簿設定）</h3>
         <small class="text-muted" style="font-size: 0.75rem;">※管理者メニュー（連携リセット）は、上のタイトルを5回連続タップで表示されます。</small>
@@ -268,7 +279,6 @@
           </div>
         </div>
         
-        <!-- ★ 隠し管理者エリア -->
         <div id="adminSection" class="col-12 mt-4 d-none">
           <div class="p-4 bg-white rounded-3 border border-danger shadow-sm">
             <h5 class="fw-bold text-danger mb-3">⚠️ システム連携設定 (管理者専用メニュー)</h5>
@@ -293,9 +303,24 @@
   let globalRecords = []; 
   let currentDisplayLimit = 20;
 
-  // 管理者メニュー呼び出し用の裏ワザ変数
   let tapCount = 0;
   let tapTimer = null;
+
+  // ★ Choices.js のインスタンス保持用変数
+  let userChoicesInstance = null;
+  let staffChoicesInstance = null;
+  let searchUserChoicesInstance = null;
+  
+  // ★ Choices.js の共通設定
+  const choicesConfig = {
+    searchEnabled: true,
+    itemSelectText: '',
+    noResultsText: '該当する名前がありません',
+    noChoicesText: '選択肢がありません',
+    searchPlaceholderValue: '🔍 名前を入力して検索...',
+    shouldSort: false, // マスタの並び順を維持
+    allowHTML: true
+  };
 
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -307,7 +332,6 @@
     
     document.getElementById(`view-${viewName}`).classList.remove('d-none');
     
-    // 選択された画面に応じてタブのハイライトを切り替える
     if (viewName === 'input') {
       document.getElementById('input-tab').classList.add('active');
     } else if (viewName === 'dashboard') {
@@ -348,7 +372,6 @@
     }
   }
 
-  // ★ 管理者メニューを5回連続タップで表示させる隠しギミック
   function handleSecretTap() {
     tapCount++;
     if (tapTimer) clearTimeout(tapTimer);
@@ -391,6 +414,10 @@
         }
       });
 
+      // ★ 利用者名に検索付きドロップダウンを適用
+      if (userChoicesInstance) userChoicesInstance.destroy();
+      userChoicesInstance = new Choices(userSelect, choicesConfig);
+
       filterSearchUserOptions();
 
       const staffSelect = document.getElementById('staff');
@@ -398,6 +425,13 @@
       data.staffs.forEach(s => {
         if (s.status === "在籍") staffSelect.innerHTML += `<option value="${s.name}">${s.name}</option>`;
       });
+
+      // ★ 記録者名に検索付きドロップダウンを適用
+      if (staffChoicesInstance) staffChoicesInstance.destroy();
+      staffChoicesInstance = new Choices(staffSelect, choicesConfig);
+      
+      const savedStaff = localStorage.getItem('lastSavedStaff');
+      if(savedStaff) staffChoicesInstance.setChoiceByValue(savedStaff);
 
       renderMasterLists();
 
@@ -464,9 +498,6 @@
         colDiv.appendChild(btn); currentBody.appendChild(colDiv);
       });
 
-      const savedStaff = localStorage.getItem('lastSavedStaff');
-      if(savedStaff) staffSelect.value = savedStaff; 
-      
       await fetchInitialRecords();
 
     } catch (error) {
@@ -474,19 +505,18 @@
     }
   }
 
+  // ★ 複数人スイッチ切り替え時、単一入力コンテナを隠す
   window.toggleMultiUser = function() {
     const isMulti = document.getElementById('multiUserSwitch').checked;
-    const userSelect = document.getElementById('user');
+    const singleContainer = document.getElementById('singleUserContainer');
     const multiContainer = document.getElementById('multiUserContainer');
     
     if (isMulti) {
-      userSelect.classList.add('d-none');
+      singleContainer.classList.add('d-none');
       multiContainer.classList.remove('d-none');
-      userSelect.removeAttribute('required');
     } else {
-      userSelect.classList.remove('d-none');
+      singleContainer.classList.remove('d-none');
       multiContainer.classList.add('d-none');
-      userSelect.setAttribute('required', 'required');
     }
   }
   
@@ -527,15 +557,20 @@
     } catch (e) { console.error("データ取得エラー:", e); }
   }
 
+  // ★ 検索用利用者のプルダウンも検索付きドロップダウン化する
   function filterSearchUserOptions() {
     const searchUserSelect = document.getElementById('searchUser');
-    const checkedStatuses = Array.from(document.querySelectorAll('.search-status-check:checked')).map(cb => cb.value);
     searchUserSelect.innerHTML = '<option value="">全員（絞り込みなし）</option>';
+    
+    const checkedStatuses = Array.from(document.querySelectorAll('.search-status-check:checked')).map(cb => cb.value);
     globalUserData.forEach(u => {
       if (checkedStatuses.length === 0 || checkedStatuses.includes(u.status)) {
         searchUserSelect.innerHTML += `<option value="${u.name}">${u.name} (${u.status})</option>`;
       }
     });
+
+    if (searchUserChoicesInstance) searchUserChoicesInstance.destroy();
+    searchUserChoicesInstance = new Choices(searchUserSelect, choicesConfig);
   }
 
   function toggleSearchAccordion() {
@@ -562,7 +597,7 @@
   function clearFilter() {
     document.getElementById('searchStartDate').value = "";
     document.getElementById('searchEndDate').value = "";
-    document.getElementById('searchUser').value = "";
+    if(searchUserChoicesInstance) searchUserChoicesInstance.setChoiceByValue("");
     document.querySelectorAll('.search-status-check').forEach(cb => cb.checked = false);
     document.querySelectorAll('.search-type-check').forEach(cb => cb.checked = false);
     filterSearchUserOptions();
@@ -640,7 +675,6 @@
               <div><span class="fs-4 fw-bold text-dark">${r.user} 様</span><span class="badge ${badgeColor} ms-2 p-2 fs-6">${r.type}</span></div>
               <span class="text-muted fw-bold fs-5">${r.date}</span>
             </div>
-            <!-- ★ 記録の本文（ココは誤読防止のため標準ゴシック） -->
             <p class="mb-2 fs-5 bg-light p-3 rounded text-dark record-text" style="white-space: pre-wrap;">${r.note}</p>
             <div class="d-flex justify-content-between align-items-end mt-2">
               <button class="btn btn-sm btn-outline-secondary fw-bold px-3 py-2" onclick="editRecord('${r.id}')">✏️ 修正する</button>
@@ -658,7 +692,14 @@
 
     const multiSwitch = document.getElementById('multiUserSwitch');
     if (multiSwitch.checked) multiSwitch.click();
-    document.getElementById('multiSwitchContainer').classList.add('d-none');
+    
+    // ★ 修正モード時に名前が確実に入るように設定
+    if (userChoicesInstance) {
+      userChoicesInstance.setChoices([{ value: rec.user, label: rec.user, selected: true }], 'value', 'label', false);
+    }
+    if (staffChoicesInstance) {
+      staffChoicesInstance.setChoices([{ value: rec.staff, label: rec.staff, selected: true }], 'value', 'label', false);
+    }
 
     document.getElementById('editRecordId').value = rec.id;
     
@@ -667,8 +708,6 @@
       document.getElementById('date').value = dateParts[0].replace(/\//g, '-') + 'T' + dateParts[1];
     }
     
-    document.getElementById('user').value = rec.user;
-    document.getElementById('staff').value = rec.staff;
     document.getElementById('note').value = rec.note;
 
     document.querySelectorAll('.type-btn').forEach(b => {
@@ -692,13 +731,16 @@
     document.getElementById('editRecordId').value = "";
     document.getElementById('recordForm').reset();
     
+    if (userChoicesInstance) userChoicesInstance.setChoiceByValue("");
+    const savedStaff = localStorage.getItem('lastSavedStaff');
+    if (staffChoicesInstance) staffChoicesInstance.setChoiceByValue(savedStaff ? savedStaff : "");
+
     document.querySelectorAll('.type-btn').forEach(b => b.className = `btn ${b.dataset.baseColor} w-100 type-btn`);
     document.getElementById('selectedType').value = "";
     
     const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
     document.getElementById('date').value = now.toISOString().slice(0, 16);
 
-    document.getElementById('multiSwitchContainer').classList.remove('d-none');
     document.getElementById('submitBtn').innerText = "登録する";
     document.getElementById('submitBtn').classList.replace("btn-warning", "btn-primary");
     document.getElementById('cancelEditBtn').classList.add("d-none");
@@ -788,6 +830,7 @@
     
     if (isEditMode) {
       usersToSave = [document.getElementById('user').value];
+      if (!usersToSave[0]) { alert("👤 利用者名を選択してください。"); return; }
     } else {
       if (document.getElementById('multiUserSwitch').checked) {
         document.querySelectorAll('.multi-user-check:checked').forEach(cb => usersToSave.push(cb.value));
@@ -840,6 +883,9 @@
           document.getElementById('selectedType').value = "";
           selectAllUsers(false);
           currentDisplayLimit = 20;
+          
+          // 送信後、入力欄のリセット（記録者は保持）
+          if (userChoicesInstance) userChoicesInstance.setChoiceByValue("");
         }
       } else { alert("処理に失敗しました: " + result.message); }
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); }
