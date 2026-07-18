@@ -140,6 +140,7 @@
             </div>
             
             <div class="mb-3">
+              <!-- 利用者名ヘッダー -->
               <div class="d-flex justify-content-between align-items-end mb-1">
                 <div class="d-flex gap-2 align-items-center">
                   <label class="form-label mb-0">👤 利用者名</label>
@@ -167,6 +168,7 @@
             </div>
 
             <div class="mb-3">
+              <!-- 記録者名ヘッダー（位置・デザインを利用者名と完全に統一） -->
               <div class="d-flex gap-2 align-items-center mb-1">
                 <label class="form-label mb-0">📛 記録者名</label>
                 <span id="staffClearBtn" class="text-danger small fw-bold btn-clear-select ms-2" onclick="clearSelect('staff')">❌ 選択を消す</span>
@@ -826,56 +828,93 @@
     } catch (error) { alert("通信エラーが発生しました。"); console.error(error); btn.disabled = false; btn.innerHTML = originalText; }
   }
 
+  // ★ 音声入力エンジンの大改造（リアルタイム・カーソル追従・自動スクロール）
   const voiceBtn = document.getElementById('voiceBtn'); const noteArea = document.getElementById('note');
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  
   if (SpeechRecognition) {
     const recognition = new SpeechRecognition(); 
     recognition.lang = 'ja-JP'; 
     recognition.continuous = true; 
-    recognition.interimResults = false;
+    recognition.interimResults = true; // ★ 追随性向上のため、変換途中の文字もリアルタイム取得
+
     let isRecording = false;
+    let blinkInterval = null;
+    let blinkFlag = true;
+    let baseText = '';          // 録音開始前の元文章
+    let lastFinalTranscript = ''; // 今回のセッションで「確定」した文章
+    let lastInterimTranscript = ''; // 今回のセッションで「今まさに変換中」の文章
     
     voiceBtn.addEventListener('click', () => {
       if (!isRecording) { 
+        baseText = noteArea.value; // 現在入っている文章を一度キープ
+        lastFinalTranscript = '';
+        lastInterimTranscript = '';
         recognition.start(); 
         voiceBtn.innerHTML = "🔴 録音中...（もう一度押すと停止）"; 
         voiceBtn.classList.replace('btn-voice', 'btn-danger'); 
         isRecording = true; 
+        
+        // ★ 疑似カーソル（|）を0.5秒おきに明滅させるタイマーを起動
+        blinkInterval = setInterval(() => {
+          blinkFlag = !blinkFlag;
+          renderTextarea();
+        }, 500);
       } else { 
-        recognition.stop(); 
-        voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
-        voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
-        isRecording = false; 
+        stopRecording();
       }
     });
 
     recognition.onresult = (event) => {
-      let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        }
-      }
-      if (finalTranscript !== '') {
-        // ① 余計な半角・全角スペースを完全に削除
-        finalTranscript = finalTranscript.replace(/[  ]+/g, '');
+      lastFinalTranscript = '';
+      lastInterimTranscript = '';
+      
+      // 最初から現在までの音声ログをすべてスキャンし、ダブりなく再結合
+      for (let i = 0; i < event.results.length; i++) {
+        let transcript = event.results[i][0].transcript;
         
-        // ★【誤変換・自動改行の修正】「点/てん」を「、」、「丸/まる」を「。」、誤変換されやすい「開業」も含めて本物の改行に置換
-        finalTranscript = finalTranscript
+        // スペースや記号のリアルタイムクレンジング
+        transcript = transcript.replace(/[  ]+/g, '');
+        transcript = transcript
           .replace(/点|てん/g, '、')
           .replace(/丸|まる/g, '。')
           .replace(/改行|かいぎょう|開業/g, '\n');
-
-        // ★ 末尾の「\n」を廃止。これで細切れの勝手な自動改行が完全にストップします
-        noteArea.value += finalTranscript; 
+        
+        if (event.results[i].isFinal) {
+          lastFinalTranscript += transcript;
+        } else {
+          lastInterimTranscript += transcript;
+        }
       }
+      renderTextarea();
     };
+
+    // ★ 画面上のテキストエリアを一瞬で描き変えて、カーソルとスクロールを同期する関数
+    function renderTextarea() {
+      let cursor = blinkFlag ? '|' : '';
+      noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript + (isRecording ? cursor : '');
+      noteArea.scrollTop = noteArea.scrollHeight; // ★ 常に最新の文字の底に画面をスクロールさせる
+    }
+
+    function stopRecording() {
+      if (!isRecording) return;
+      clearInterval(blinkInterval);
+      isRecording = false;
+      recognition.stop(); 
+      
+      // 疑似カーソル（|）を完全に除去した最終確定文章をテキストエリアに保存
+      noteArea.value = baseText + lastFinalTranscript + lastInterimTranscript;
+      baseText = '';
+      lastFinalTranscript = '';
+      lastInterimTranscript = '';
+      
+      voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）"; 
+      voiceBtn.classList.replace('btn-danger', 'btn-voice'); 
+    }
 
     recognition.onend = () => {
       if (isRecording) {
-        voiceBtn.innerHTML = "🎤 音声入力スタート（ここを押して話す）";
-        voiceBtn.classList.replace('btn-danger', 'btn-voice');
-        isRecording = false;
+        stopRecording();
       }
     };
     
