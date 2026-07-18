@@ -12,8 +12,22 @@
     .btn-voice { background-color: #ffc107; color: #000; font-weight: bold; }
     #loading { display: none; color: #0d6efd; font-weight: bold; text-align: center; margin-top: 10px; }
     
-    .nav-pills .nav-link { font-size: 1.1rem; font-weight: bold; padding: 15px; border-radius: 10px; color: #6c757d; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .nav-pills .nav-link.active { background-color: #0d6efd; color: #fff; }
+    /* ★ タブのデザイン変更（色分け・非選択時の調整） */
+    .nav-pills .nav-link { 
+      font-size: 1.15rem; font-weight: bold; padding: 15px; border-radius: 10px; 
+      color: #6c757d; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+      transition: background-color 0.2s, color 0.2s;
+    }
+    .nav-pills .nav-link:hover { background-color: #f1f3f5; }
+    /* 入力タブ（アクティブ時＝青） */
+    #input-tab.active { background-color: #0d6efd !important; color: #fff !important; }
+    /* 検索タブ（アクティブ時＝緑） */
+    #dashboard-tab.active { background-color: #198754 !important; color: #fff !important; }
+
+    /* ★ 画面ごとのカード上部フチ色設定 */
+    .view-card-input { border-top: 6px solid #0d6efd; }
+    .view-card-dashboard { border-top: 6px solid #198754; }
+    .view-card-master { border-top: 6px solid #6c757d; }
 
     .category-header { transition: all 0.2s ease; font-size: 1.1rem; user-select: none; }
     .category-header:active { opacity: 0.8; }
@@ -30,10 +44,16 @@
 
 <div class="container-xl">
   
-  <ul class="nav nav-pills nav-fill gap-2 mb-4 d-none" id="mainTab" role="tablist">
+  <!-- ★ アプリヘッダー（タイトルと設定ボタンを分離して右上に配置） -->
+  <div id="appHeader" class="d-none d-flex justify-content-between align-items-center mb-3 px-2">
+    <h1 class="h5 mb-0 fw-bold text-secondary">ケアハウス記録管理システム</h1>
+    <button class="btn btn-outline-secondary btn-sm fw-bold px-3 py-2 shadow-sm" onclick="switchView('master')">⚙️ 設定</button>
+  </div>
+
+  <!-- ★ メインタブ（2つに集約して巨大化） -->
+  <ul class="nav nav-pills nav-fill gap-3 mb-4 d-none" id="mainTab" role="tablist">
     <li class="nav-item"><button class="nav-link active" id="input-tab" onclick="switchView('input')">📝 記録を入力する</button></li>
     <li class="nav-item"><button class="nav-link" id="dashboard-tab" onclick="switchView('dashboard')">👀 記録の確認・検索</button></li>
-    <li class="nav-item"><button class="nav-link" id="master-tab" onclick="switchView('master')">⚙️ 設定 (マスタ管理)</button></li>
   </ul>
 
   <!-- 初期設定画面 -->
@@ -50,10 +70,10 @@
     </div>
   </div>
 
-  <!-- 記録入力画面 -->
+  <!-- 記録入力画面（青テーマ） -->
   <div id="view-input" class="view-section d-none">
-    <div class="card p-4">
-      <h3 class="text-center mb-4 fw-bold text-secondary">支援記録 入力</h3>
+    <div class="card p-4 view-card-input shadow-sm">
+      <h3 class="text-center mb-4 fw-bold text-primary">支援記録 入力</h3>
       <form id="recordForm">
         <input type="hidden" id="editRecordId" value="">
         
@@ -114,22 +134,21 @@
     </div>
   </div>
 
-  <!-- ★整理整頓版：記録の確認・検索画面 -->
+  <!-- 記録の確認・検索画面（緑テーマ） -->
   <div id="view-dashboard" class="view-section d-none">
-    <div class="card p-4">
-      <h3 class="text-center mb-4 fw-bold text-secondary">記録の確認・検索</h3>
+    <div class="card p-4 view-card-dashboard shadow-sm">
+      <h3 class="text-center mb-4 fw-bold text-success">記録の確認・検索</h3>
       
       <!-- アコーディオン型：検索・絞り込みエリア -->
       <div class="mb-4">
-        <button id="toggleSearchBtn" class="btn btn-outline-primary w-100 fw-bold p-3 fs-5 bg-white shadow-sm" type="button" onclick="toggleSearchAccordion()">
+        <button id="toggleSearchBtn" class="btn btn-outline-success w-100 fw-bold p-3 fs-5 bg-white shadow-sm" type="button" onclick="toggleSearchAccordion()">
           🔍 検索・絞り込み条件を指定する（タップで開く）
         </button>
         
-        <div id="searchConditionBody" class="mt-3 p-4 bg-light rounded-3 border d-none shadow-sm">
+        <div id="searchConditionBody" class="mt-3 p-4 bg-light rounded-3 border d-none shadow-sm border-success">
           <h5 class="fw-bold text-muted mb-4 border-bottom pb-2">🔍 検索条件</h5>
           
           <div class="row g-4">
-            <!-- ① 期間 -->
             <div class="col-12">
               <label class="form-label text-secondary small mb-2">① 期間を指定する</label>
               <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
@@ -140,7 +159,6 @@
               </div>
             </div>
             
-            <!-- ② ステータス -->
             <div class="col-md-6">
               <label class="form-label text-secondary small d-block mb-2">② 利用者の状態（下の名簿が自動連動）</label>
               <div class="d-flex flex-wrap gap-2">
@@ -153,13 +171,11 @@
               </div>
             </div>
 
-            <!-- ③ 利用者名 -->
             <div class="col-md-6">
               <label class="form-label text-secondary small mb-2">③ 利用者名（個人の絞り込み）</label>
               <select id="searchUser" class="form-select form-select-lg"><option value="">全員（絞り込みなし）</option></select>
             </div>
             
-            <!-- ④ 種別 -->
             <div class="col-12">
               <label class="form-label text-secondary small d-block mb-2">④ 記録の種別（複数選択可）</label>
               <div id="searchTypeCheckboxContainer" class="d-flex flex-wrap gap-2 p-3 border rounded bg-white" style="max-height: 180px; overflow-y: auto;"></div>
@@ -173,13 +189,11 @@
         </div>
       </div>
 
-      <!-- 記録一覧（フルワイド表示） -->
       <h5 id="resultTitle" class="fw-bold text-secondary mb-3">📋 最新の記録</h5>
       <div id="searchResultsContainer" class="row g-3">
         <!-- ここにカードが並ぶ -->
       </div>
       
-      <!-- さらに読み込むボタン -->
       <div id="loadMoreContainer" class="text-center mt-4 d-none">
         <button class="btn btn-secondary btn-lg fw-bold rounded-pill px-5 shadow-sm" onclick="loadMoreRecords()">🔽 もっと過去の記録を見る</button>
       </div>
@@ -187,10 +201,15 @@
     </div>
   </div>
 
-  <!-- マスタ管理画面 -->
+  <!-- マスタ管理画面（グレーテーマ・隠し機能付き） -->
   <div id="view-master" class="view-section d-none">
-    <div class="card p-4">
-      <h3 class="text-center mb-4 fw-bold text-secondary">マスタ管理（名簿設定）</h3>
+    <div class="card p-4 view-card-master shadow-sm">
+      <!-- ★ タップで管理者メニューを呼び出す裏ワザタイトル -->
+      <div class="text-center mb-4" onclick="handleSecretTap()" style="cursor: pointer; user-select: none;">
+        <h3 class="fw-bold text-secondary mb-1">⚙️ マスタ管理（名簿設定）</h3>
+        <small class="text-muted" style="font-size: 0.75rem;">※管理者メニュー（連携リセット）は、上のタイトルを5回連続タップで表示されます。</small>
+      </div>
+
       <div class="row g-4">
         <div class="col-md-6">
           <div class="p-3 bg-light rounded-3 border h-100">
@@ -222,16 +241,19 @@
             <div id="masterStaffList" style="max-height: 400px; overflow-y: auto;"></div>
           </div>
         </div>
-        <div class="col-12 mt-2">
-          <div class="p-3 bg-white rounded-3 border shadow-sm">
-            <h5 class="fw-bold text-secondary mb-3">🔗 システム連携設定 (管理者用)</h5>
-            <p class="text-muted small mb-2">現在この端末に設定されているWebアプリURL（連携キー）です。</p>
+        
+        <!-- ★ 隠し管理者エリア（初期はd-none） -->
+        <div id="adminSection" class="col-12 mt-4 d-none">
+          <div class="p-4 bg-white rounded-3 border border-danger shadow-sm">
+            <h5 class="fw-bold text-danger mb-3">⚠️ システム連携設定 (管理者専用メニュー)</h5>
+            <p class="text-muted small mb-2">現在この端末に設定されているWebアプリURL（連携キー）です。不用意に解除するとシステムが使用できなくなります。</p>
             <div class="input-group">
               <input type="text" id="currentGasUrl" class="form-control bg-light text-muted" readonly>
               <button class="btn btn-outline-danger fw-bold" type="button" onclick="clearGasUrl()">連携解除 (リセット)</button>
             </div>
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -243,8 +265,11 @@
   let globalUserData = [];
   let globalStaffData = []; 
   let globalRecords = []; 
-  
   let currentDisplayLimit = 20;
+
+  // ★ 管理者メニュー呼び出し用の裏ワザ変数
+  let tapCount = 0;
+  let tapTimer = null;
 
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -253,12 +278,14 @@
   function switchView(viewName) {
     document.querySelectorAll('.view-section').forEach(section => section.classList.add('d-none'));
     document.querySelectorAll('#mainTab .nav-link').forEach(tab => tab.classList.remove('active'));
+    
     document.getElementById(`view-${viewName}`).classList.remove('d-none');
     
-    if (viewName !== 'setup') {
-      document.getElementById(`${viewName}-tab`).classList.add('active');
-    }
-    if (viewName === 'dashboard') {
+    // 選択された画面に応じてタブのハイライトを切り替える（設定画面の時はどちらも非アクティブ）
+    if (viewName === 'input') {
+      document.getElementById('input-tab').classList.add('active');
+    } else if (viewName === 'dashboard') {
+      document.getElementById('dashboard-tab').classList.add('active');
       doSearch();
     }
   }
@@ -267,6 +294,7 @@
     if (!GAS_URL) {
       switchView('setup');
     } else {
+      document.getElementById('appHeader').classList.remove('d-none');
       document.getElementById('mainTab').classList.remove('d-none');
       document.getElementById('currentGasUrl').value = GAS_URL;
       switchView('input');
@@ -282,6 +310,7 @@
     localStorage.setItem('savedGasUrl', url);
     GAS_URL = url;
     document.getElementById('currentGasUrl').value = url;
+    document.getElementById('appHeader').classList.remove('d-none');
     document.getElementById('mainTab').classList.remove('d-none');
     switchView('input');
     loadAllMasterData();
@@ -290,6 +319,22 @@
   function clearGasUrl() {
     if (confirm("本当に連携を解除しますか？\n再度利用するにはURLの再入力が必要になります。")) {
       localStorage.removeItem('savedGasUrl'); GAS_URL = ""; location.reload(); 
+    }
+  }
+
+  // ★ 管理者メニューを5回連続タップで表示させる隠しギミック
+  function handleSecretTap() {
+    tapCount++;
+    if (tapTimer) clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { tapCount = 0; }, 2000); // 2秒間タップがなければリセット
+    
+    if (tapCount >= 5) {
+      const adminSec = document.getElementById('adminSection');
+      adminSec.classList.toggle('d-none');
+      if (!adminSec.classList.contains('d-none')) {
+        adminSec.scrollIntoView({ behavior: 'smooth' }); // 表示されたらスクロールして見せる
+      }
+      tapCount = 0; // 開閉したら回数をリセット
     }
   }
 
@@ -473,12 +518,12 @@
     if (body.classList.contains('d-none')) {
       body.classList.remove('d-none');
       btn.innerHTML = "🔼 検索・絞り込み条件を閉じる";
-      btn.classList.replace('btn-outline-primary', 'btn-primary');
+      btn.classList.replace('btn-outline-success', 'btn-success');
       btn.classList.add('text-white');
     } else {
       body.classList.add('d-none');
       btn.innerHTML = "🔍 検索・絞り込み条件を指定する（タップで開く）";
-      btn.classList.replace('btn-primary', 'btn-outline-primary');
+      btn.classList.replace('btn-success', 'btn-outline-success');
       btn.classList.remove('text-white');
     }
   }
