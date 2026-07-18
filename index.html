@@ -325,6 +325,7 @@
   let GAS_URL = localStorage.getItem('savedGasUrl') || "";
   let globalUserData = [];
   let globalStaffData = []; 
+  let globalTypesData = []; // ★ 種別データを保持するための変数を追加
   let globalRecords = []; 
   let currentDisplayLimit = 20;
   
@@ -423,7 +424,9 @@
         throw new Error("受信したデータの形式が不正です");
       }
       
-      globalUserData = data.users; globalStaffData = data.staffs; 
+      globalUserData = data.users; 
+      globalStaffData = data.staffs; 
+      globalTypesData = data.types; // ★ 種別データをグローバルに保持
       
       if (userChoicesInstance) userChoicesInstance.destroy();
       if (staffChoicesInstance) staffChoicesInstance.destroy();
@@ -451,8 +454,10 @@
       if(savedStaff) staffChoicesInstance.setChoiceByValue(savedStaff);
 
       renderMasterLists();
-      buildTypeUI(data.types);
+      
+      // ★ 種別のUIを構築する前に、過去の記録データを取得する（自動集計のため）
       await fetchInitialRecords();
+      buildTypeUI(globalTypesData); 
 
     } catch (error) {
       console.error(error);
@@ -540,6 +545,7 @@
     doSearch();
   }
 
+  // ★ 頻度による自動計算（パターンB）を組み込んだ新しい関数
   function buildTypeUI(typesData) {
     const accordionContainer = document.getElementById('typeAccordionContainer');
     const quickContainer = document.getElementById('quickTypeContainer');
@@ -547,8 +553,73 @@
     
     accordionContainer.innerHTML = ""; quickContainer.innerHTML = ""; searchTypeContainer.innerHTML = "";
     
-    // ★ ここで固定のキーワードを指定しています
-    const quickKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
+    // 1. 直近100件の記録から種別の使用回数を集計する
+    let topTypes = [];
+    const recentRecords = globalRecords.slice(0, 100);
+    const typeCounts = {};
+    recentRecords.forEach(r => {
+      typeCounts[r.type] = (typeCounts[r.type] || 0) + 1;
+    });
+    
+    // 回数が多い順に並び替え
+    const sortedTypes = Object.keys(typeCounts).sort((a, b) => typeCounts[b] - typeCounts[a]);
+    
+    // データが少ない初期状態のための「基本の4つ」
+    const defaultKeywords = ["日常", "体調", "家族連絡", "ヒヤリ"];
+    topTypes = [...sortedTypes];
+    
+    // もし4つ未満なら、基本の4つから探して埋める
+    for (let kw of defaultKeywords) {
+      if (topTypes.length >= 4) break;
+      const foundType = typesData.find(t => t.name.includes(kw));
+      if (foundType && !topTypes.includes(foundType.name)) {
+        topTypes.push(foundType.name);
+      }
+    }
+    // きっちり上位4つに絞る
+    topTypes = topTypes.slice(0, 4);
+
+    // クリック時の共通処理
+    const handleTypeClick = function(btnElement, typeName, baseColor) {
+      isFormDirty = true;
+      const isSelected = btnElement.classList.contains(baseColor.replace('outline-', ''));
+      document.querySelectorAll('.type-btn').forEach(b => { b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; });
+      document.getElementById('selectedType').value = "";
+      
+      const stickyDisplay = document.getElementById('stickyTypeDisplay');
+      const stickyName = document.getElementById('stickyTypeName');
+
+      if (!isSelected) {
+        const activeColor = baseColor.replace('outline-', '');
+        document.querySelectorAll(`.type-btn[data-type-value="${typeName}"]`).forEach(b => {
+           b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`;
+        });
+        document.getElementById('selectedType').value = typeName;
+        stickyDisplay.style.display = "block";
+        stickyName.innerText = typeName;
+      } else {
+        stickyDisplay.style.display = "none";
+      }
+    };
+
+    // 2. よく使う種別（上位4つ）を最前列に並べる
+    topTypes.forEach(typeName => {
+      const t = typesData.find(type => type.name === typeName);
+      if(!t) return;
+      let baseColor = "btn-outline-secondary"; 
+      if(t.category.includes("生活")) baseColor = "btn-outline-success"; 
+      if(t.category.includes("健康")) baseColor = "btn-outline-primary"; 
+      if(t.category.includes("リスク")) baseColor = "btn-outline-danger"; 
+
+      const col = document.createElement('div'); col.className = "col-6";
+      const btn = document.createElement('button'); btn.type = "button";
+      btn.className = `btn ${baseColor} w-100 type-btn fw-bold p-3 fs-5`; 
+      btn.innerText = "⭐ " + t.name; btn.dataset.typeValue = t.name; btn.dataset.baseColor = baseColor;
+      btn.addEventListener('click', function() { handleTypeClick(this, t.name, baseColor); });
+      col.appendChild(btn); quickContainer.appendChild(col);
+    });
+
+    // 3. アコーディオン（その他の種別）と検索用チェックボックスを構築
     let currentCategory = ""; 
     let currentBody = null;
     
@@ -559,37 +630,6 @@
       if(t.category.includes("リスク")) { baseColor = "btn-outline-danger"; colorClass = "bg-danger text-white"; }
 
       searchTypeContainer.innerHTML += `<input type="checkbox" class="btn-check search-type-check" id="search-type-${index}" value="${t.name}"><label class="btn ${baseColor} search-checkbox-label" for="search-type-${index}">${t.name}</label>`;
-
-      const handleClick = function(btnElement) {
-        isFormDirty = true;
-        const isSelected = btnElement.classList.contains(baseColor.replace('outline-', ''));
-        document.querySelectorAll('.type-btn').forEach(b => { b.className = `btn ${b.dataset.baseColor} w-100 type-btn`; });
-        document.getElementById('selectedType').value = "";
-        
-        const stickyDisplay = document.getElementById('stickyTypeDisplay');
-        const stickyName = document.getElementById('stickyTypeName');
-
-        if (!isSelected) {
-          const activeColor = baseColor.replace('outline-', '');
-          document.querySelectorAll(`.type-btn[data-type-value="${t.name}"]`).forEach(b => {
-             b.className = `btn ${activeColor} text-white w-100 type-btn shadow-sm`;
-          });
-          document.getElementById('selectedType').value = t.name;
-          stickyDisplay.style.display = "block";
-          stickyName.innerText = t.name;
-        } else {
-          stickyDisplay.style.display = "none";
-        }
-      };
-
-      if (quickKeywords.some(kw => t.name.includes(kw))) {
-        const col = document.createElement('div'); col.className = "col-6";
-        const btn = document.createElement('button'); btn.type = "button";
-        btn.className = `btn ${baseColor} w-100 type-btn fw-bold p-3 fs-5`; 
-        btn.innerText = "⭐ " + t.name; btn.dataset.typeValue = t.name; btn.dataset.baseColor = baseColor;
-        btn.addEventListener('click', function() { handleClick(this); });
-        col.appendChild(btn); quickContainer.appendChild(col);
-      }
 
       if (currentCategory !== t.category) {
         currentCategory = t.category;
@@ -603,9 +643,8 @@
         currentBody.className = "p-3 mb-2 border rounded-3 category-body d-none row g-2 bg-white";
         accordionContainer.appendChild(currentBody);
 
-        // ★ 展開されない不具合を修正した箇所です
         header.addEventListener('click', function() {
-          const body = this.nextElementSibling;
+          const body = this.nextElementSibling; // ★ 修正済みの展開ロジック
           const isHidden = body.classList.contains('d-none');
           document.querySelectorAll('.category-body').forEach(b => b.classList.add('d-none'));
           document.querySelectorAll('.category-arrow').forEach(a => a.innerText = "🔽");
@@ -616,7 +655,7 @@
       const colDiv = document.createElement('div'); colDiv.className = "col-6";
       const btn = document.createElement('button'); btn.type = "button"; btn.className = `btn ${baseColor} w-100 type-btn`;
       btn.innerText = t.name; btn.dataset.typeValue = t.name; btn.dataset.baseColor = baseColor;
-      btn.addEventListener('click', function() { handleClick(this); });
+      btn.addEventListener('click', function() { handleTypeClick(this, t.name, baseColor); });
       colDiv.appendChild(btn); currentBody.appendChild(colDiv);
     });
   }
@@ -966,7 +1005,9 @@
         
         lastSavedRecordData = { user: usersToSave[0], staff: staff, type: type, note: note };
         
+        // ★ 記録が完了したら最新のデータを引っ張ってきて、よく使う種別ボタンを再計算して更新します
         await fetchInitialRecords();
+        buildTypeUI(globalTypesData); 
 
         setTimeout(() => {
           if (isEditMode) {
