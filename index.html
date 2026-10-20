@@ -238,8 +238,15 @@
         
         <div id="searchConditionBody" class="mt-3 p-4 bg-light rounded-3 border d-none shadow-sm border-success">
           <div class="row g-4">
+            <!-- 【追加機能】年度ショートカットボタン -->
             <div class="col-12">
-              <label class="form-label text-secondary small mb-2">① 期間</label>
+              <div class="d-flex justify-content-between align-items-end mb-2">
+                <label class="form-label text-secondary small mb-0">① 期間</label>
+                <div>
+                  <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="setFiscalYear(0)">今年度</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="setFiscalYear(-1)">昨年度</button>
+                </div>
+              </div>
               <div class="d-flex flex-column flex-md-row align-items-md-center gap-2">
                 <input type="date" id="searchStartDate" class="form-control form-control-lg w-100" onchange="applyFilter()">
                 <span class="text-muted fw-bold text-center d-none d-md-inline px-2">〜</span>
@@ -279,7 +286,12 @@
         </div>
       </div>
 
-      <h5 id="resultTitle" class="fw-bold text-secondary mb-3">📋 最新20件</h5>
+      <!-- 【追加機能】CSV出力ボタン -->
+      <div class="d-flex flex-column flex-sm-row justify-content-between align-items-sm-end mb-3 mt-4 gap-2">
+        <h5 id="resultTitle" class="fw-bold text-secondary mb-0">📋 最新20件</h5>
+        <button id="csvExportBtn" class="btn btn-success fw-bold px-3 shadow-sm" onclick="exportCSV()">📥 CSV出力 (Excel用)</button>
+      </div>
+
       <div id="searchResultsContainer" class="row g-3"></div>
       
       <div id="loadMoreContainer" class="text-center mt-4 d-none">
@@ -698,6 +710,22 @@
     searchTypeContainer.appendChild(searchTypeFragment);
   }
 
+  // 【追加機能】監査用の期間指定ショートカット関数
+  function setFiscalYear(offset) {
+    const today = new Date();
+    // 4月始まりとする。1月〜3月は前年が「今年度」の開始年になる
+    let year = today.getFullYear();
+    if (today.getMonth() < 3) year--;
+    year += offset;
+    
+    const startDate = `${year}-04-01`;
+    const endDate = `${year + 1}-03-31`;
+    
+    document.getElementById('searchStartDate').value = startDate;
+    document.getElementById('searchEndDate').value = endDate;
+    applyFilter();
+  }
+
   function saveSearchConditions() {
     const conditions = {
       startDate: document.getElementById('searchStartDate').value, endDate: document.getElementById('searchEndDate').value,
@@ -767,6 +795,60 @@
       }
       doSearch();
     } catch(e) { console.error(e); }
+  }
+
+  // 【追加機能】CSV出力（Excel用）の実装
+  async function exportCSV() {
+    const btn = document.getElementById('csvExportBtn');
+    btn.disabled = true;
+    btn.innerText = "⏳ 出力中...";
+    
+    try {
+      const checkedTypes = Array.from(document.querySelectorAll('.search-type-check:checked')).map(cb => cb.value);
+      const conditions = {
+        startDate: document.getElementById('searchStartDate').value, endDate: document.getElementById('searchEndDate').value,
+        userId: document.getElementById('searchUser').value,
+        includeHospital: document.getElementById('search-status-hospital').checked, includeOut: document.getElementById('search-status-out').checked,
+        types: checkedTypes, isExport: true // このフラグで全件取得
+      };
+
+      const result = await api('searchRecords', conditions);
+      
+      if (!result.records || result.records.length === 0) {
+        alert("出力するデータがありません。");
+        btn.disabled = false; btn.innerText = "📥 CSV出力 (Excel用)";
+        return;
+      }
+      
+      // Excelで文字化けしないようにBOM（\uFEFF）を付与
+      let csvContent = "\uFEFF";
+      csvContent += "発生日時,利用者名,種別,特記事項,記録者名\n";
+      
+      result.records.forEach(r => {
+        // Excelでセル内改行を保持し、カンマなどをエスケープするための処理
+        const safeNote = String(r.note).replace(/"/g, '""');
+        csvContent += `"${r.date}","${r.userName}","${r.type}","${safeNote}","${r.staffName}"\n`;
+      });
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      
+      const now = new Date();
+      const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+      link.setAttribute("download", `記録データ出力_${ts}.csv`);
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+    } catch(e) {
+      alert("CSVの出力に失敗しました: " + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "📥 CSV出力 (Excel用)";
+    }
   }
 
   function doSearch() {
